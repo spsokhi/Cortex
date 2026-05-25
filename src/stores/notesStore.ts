@@ -22,7 +22,7 @@ interface NotesState {
 
 export const useNotesStore = create<NotesState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       notes: [],
       activeNoteId: null,
 

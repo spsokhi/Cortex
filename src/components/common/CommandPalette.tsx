@@ -8,7 +8,7 @@ import {
 import { useUIStore } from "@/stores/uiStore";
 import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
-import { cn } from "@/utils/cn";
+
 
 interface CommandItem {
   id: string;

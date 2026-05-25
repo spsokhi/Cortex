@@ -107,7 +107,7 @@ export function ChatInput({
         <TextareaAutosize
           ref={textareaRef}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => { setValue(e.target.value); onInputChange?.(e.target.value); }}
           onKeyDown={handleKeyDown}
           placeholder={isProcessingVoice ? "Processing audio…" : placeholder}
           disabled={disabled || isProcessingVoice}

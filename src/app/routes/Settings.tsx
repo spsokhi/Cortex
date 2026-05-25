@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Settings, Cpu, Database, Mic, Eye, Shield, Terminal, Save,
-  RotateCcw, ExternalLink, ChevronRight,
+  RotateCcw, ChevronRight,
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";

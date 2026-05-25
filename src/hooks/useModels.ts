@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react";
 import { useModelStore } from "@/stores/modelStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
-import { ollamaClient } from "@/services/api/ollama";
+
 import type { ModelInfo } from "@/types/models";
 
 export function useModels() {

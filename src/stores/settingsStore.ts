@@ -20,7 +20,7 @@ type DeepPartial<T> = T extends object
 function deepMerge<T extends object>(target: T, source: DeepPartial<T>): T {
   const result = { ...target };
   for (const key of Object.keys(source) as Array<keyof T>) {
-    const srcVal = source[key];
+    const srcVal = (source as Record<keyof T, unknown>)[key];
     const tgtVal = target[key];
     if (
       srcVal !== undefined &&

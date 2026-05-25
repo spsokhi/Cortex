@@ -26,7 +26,7 @@ export function ChatRoute() {
   const [ragEnabled, setRagEnabled] = useState(false);
   const [inputValue, setInputValue] = useState("");
 
-  const { activeConversation, setActiveConversation, loadConversation, createConversation, conversations } = useChatStore();
+  const { activeConversation, loadConversation, createConversation, conversations } = useChatStore();
   const { activeModelId } = useModelStore();
   const { settings } = useSettingsStore();
   const { sendMessage, stopGeneration, isGenerating } = useChat();

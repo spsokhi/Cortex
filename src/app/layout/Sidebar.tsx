@@ -249,7 +249,6 @@ function ConversationItem({
   lastMessage,
   updatedAt,
   isActive,
-  pinned,
   onSelect,
   onDelete,
 }: ConversationItemProps) {

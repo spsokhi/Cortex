@@ -2,7 +2,6 @@ import { useCallback, useRef } from "react";
 import { nanoid } from "nanoid";
 import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useFileStore } from "@/stores/fileStore";
 import { ollamaClient } from "@/services/api/ollama";
@@ -63,7 +62,6 @@ export function useChat() {
   } = useChatStore();
 
   const { activeModelId, modelConfig } = useModelStore();
-  const { settings } = useSettingsStore();
   const { toast } = useUIStore();
 
   const sendMessage = useCallback(

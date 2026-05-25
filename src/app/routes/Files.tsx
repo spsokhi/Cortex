@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload, Search, FolderOpen, FileText, File, Image,
   Code2, Trash2, RefreshCw, CheckCircle2, Clock, AlertCircle,
-  Eye,
 } from "lucide-react";
 import { useFileStore } from "@/stores/fileStore";
 import { useUIStore } from "@/stores/uiStore";

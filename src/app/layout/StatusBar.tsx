@@ -1,7 +1,7 @@
 import { Cpu, MemoryStick, Zap, Circle, Layers } from "lucide-react";
 import { useSystem } from "@/hooks/useSystem";
 import { useModelStore } from "@/stores/modelStore";
-import { formatBytes, formatPercent } from "@/utils/format";
+import { formatBytes } from "@/utils/format";
 import { cn } from "@/utils/cn";
 
 export function StatusBar() {

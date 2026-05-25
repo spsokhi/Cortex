@@ -40,7 +40,7 @@ export function useVoice() {
       recorder.onstop = async () => {
         setRecordingState("processing");
         try {
-          const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+          new Blob(chunksRef.current, { type: "audio/webm" });
 
           // In Tauri env, send to whisper service
           if (typeof window.__TAURI_INTERNALS__ !== "undefined") {
