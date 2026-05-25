@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/cortex-icon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Privacy-first local AI assistant — your data never leaves your device" />
+    <!-- Preconnect not needed — fully offline -->
+    <title>Cortex — Local AI</title>
+    <!-- Custom font (bundled via vite-plugin or system fallback) -->
+    <style>
+      /* Prevent flash of unstyled content */
+      html { background-color: #09090b; }
+      body { margin: 0; }
+      /* Inter font loading via CSS (served from /public/fonts) */
+      @font-face {
+        font-family: 'Inter var';
+        font-weight: 100 900;
+        font-display: swap;
+        font-style: normal;
+        src: url('/fonts/InterVariable.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'JetBrains Mono';
+        font-weight: 100 800;
+        font-display: swap;
+        src: url('/fonts/JetBrainsMono.woff2') format('woff2');
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

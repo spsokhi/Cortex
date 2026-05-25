@@ -1,0 +1,79 @@
+[package]
+name = "cortex"
+version = "0.1.0"
+description = "Privacy-first local AI assistant"
+authors = ["Cortex Contributors"]
+license = "MIT"
+repository = "https://github.com/cortexai/cortex"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "cortex_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "cortex"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-ico", "image-png"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-store = "2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP client for Ollama API
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Stream utilities
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Unique IDs
+uuid = { version = "1", features = ["v4"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# System info
+sysinfo = "0.30"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# File processing
+walkdir = "2"
+mime_guess = "2"
+
+# Text chunking (Rust-native)
+unicode-segmentation = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

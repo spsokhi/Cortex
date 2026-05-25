@@ -1,0 +1,109 @@
+version: "3.9"
+
+# Cortex Python microservices
+# The Tauri desktop app connects to these on localhost ports.
+# GPU support: set COMPOSE_PROFILES=gpu to enable CUDA containers.
+
+services:
+  # ─── Ollama LLM runtime ────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cortex-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    environment:
+      - OLLAMA_ORIGINS=http://localhost:1420,tauri://localhost
+    profiles:
+      - services
+    # GPU support (uncomment for NVIDIA)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ─── Embeddings service ─────────────────────────────────────────────────────
+  embeddings:
+    build:
+      context: ./services/embeddings
+      dockerfile: ../../docker/services/embeddings.Dockerfile
+    container_name: cortex-embeddings
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - embeddings_cache:/root/.cortex
+      - hf_cache:/root/.cache/huggingface
+    environment:
+      - EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5
+      - PORT=8001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - services
+
+  # ─── Whisper STT service ────────────────────────────────────────────────────
+  whisper:
+    build:
+      context: ./services/whisper
+      dockerfile: ../../docker/services/whisper.Dockerfile
+    container_name: cortex-whisper
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8002:8002"
+    volumes:
+      - whisper_models:/root/.cortex/whisper-models
+    environment:
+      - WHISPER_MODEL=base
+      - WHISPER_DEVICE=cpu
+      - PORT=8002
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - services
+
+  # ─── RAG orchestration service ──────────────────────────────────────────────
+  rag:
+    build:
+      context: ./services/rag
+      dockerfile: ../../docker/services/rag.Dockerfile
+    container_name: cortex-rag
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8003:8003"
+    environment:
+      - EMBEDDINGS_URL=http://embeddings:8001
+      - CHUNK_SIZE=512
+      - CHUNK_OVERLAP=64
+      - PORT=8003
+    depends_on:
+      embeddings:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - services
+
+volumes:
+  ollama_data:
+    driver: local
+  embeddings_cache:
+    driver: local
+  hf_cache:
+    driver: local
+  whisper_models:
+    driver: local

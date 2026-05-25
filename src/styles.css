@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: #09090b;
+    color: #fafafa;
+    font-family: 'Inter var', 'Inter', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    user-select: none;
+  }
+
+  /* Allow text selection inside message content */
+  .selectable {
+    user-select: text;
+    cursor: text;
+  }
+
+  /* Custom scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Tauri drag region for custom titlebar */
+  [data-tauri-drag-region] {
+    -webkit-app-region: drag;
+  }
+  [data-tauri-drag-region] * {
+    -webkit-app-region: no-drag;
+  }
+}
+
+@layer components {
+  .cortex-surface {
+    @apply bg-cortex-surface border border-cortex-border;
+  }
+
+  .cortex-card {
+    @apply bg-cortex-surface-2 border border-cortex-border rounded-lg;
+  }
+
+  .cortex-input {
+    @apply bg-cortex-surface-3 border border-cortex-border rounded-lg px-3 py-2
+           text-cortex-text placeholder-cortex-text-dim
+           focus:outline-none focus:border-cortex-accent focus:ring-1 focus:ring-cortex-accent
+           transition-colors duration-150;
+  }
+
+  .cortex-button-primary {
+    @apply bg-cortex-accent text-white rounded-lg px-4 py-2 font-medium
+           hover:bg-cortex-accent-dim active:scale-[0.98]
+           transition-all duration-150 cursor-pointer;
+  }
+
+  .cortex-button-ghost {
+    @apply text-cortex-text-muted rounded-lg px-3 py-2
+           hover:bg-cortex-surface-3 hover:text-cortex-text
+           active:scale-[0.98] transition-all duration-150 cursor-pointer;
+  }
+
+  .cortex-button-icon {
+    @apply p-2 rounded-lg text-cortex-text-muted
+           hover:bg-cortex-surface-3 hover:text-cortex-text
+           active:scale-95 transition-all duration-150 cursor-pointer;
+  }
+
+  /* Streaming cursor */
+  .streaming-cursor::after {
+    content: '▊';
+    @apply animate-blink text-cortex-accent ml-0.5;
+  }
+
+  /* Code blocks */
+  .prose-cortex pre {
+    @apply bg-cortex-surface-3 border border-cortex-border rounded-lg overflow-x-auto;
+    scrollbar-width: thin;
+  }
+  .prose-cortex code:not(pre code) {
+    @apply bg-cortex-surface-3 text-cortex-accent px-1 py-0.5 rounded text-[0.85em] font-mono;
+  }
+  .prose-cortex a {
+    @apply text-cortex-accent hover:underline;
+  }
+  .prose-cortex blockquote {
+    @apply border-l-2 border-cortex-accent pl-4 text-cortex-text-muted italic;
+  }
+  .prose-cortex table {
+    @apply w-full border-collapse;
+  }
+  .prose-cortex th, .prose-cortex td {
+    @apply border border-cortex-border px-3 py-2 text-sm;
+  }
+  .prose-cortex th {
+    @apply bg-cortex-surface-3 text-cortex-text font-medium;
+  }
+
+  /* Resource bar */
+  .resource-bar {
+    @apply h-1 rounded-full bg-cortex-surface-3 overflow-hidden;
+  }
+  .resource-bar-fill {
+    @apply h-full rounded-full transition-all duration-500;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .glass {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(17, 17, 19, 0.8);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 20px rgba(129, 140, 248, 0.2);
+  }
+}

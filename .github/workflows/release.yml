@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. v0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build release (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x86_64
+            runner: windows-latest
+            tauri_target: ""
+          - platform: macos-x86_64
+            runner: macos-13
+            tauri_target: x86_64-apple-darwin
+          - platform: macos-aarch64
+            runner: macos-latest
+            tauri_target: aarch64-apple-darwin
+          - platform: linux-x86_64
+            runner: ubuntu-22.04
+            tauri_target: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux deps
+        if: matrix.runner == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            pkg-config
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.tauri_target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Cortex ${{ github.ref_name }}"
+          releaseBody: |
+            ## What's new
+
+            See the [CHANGELOG](https://github.com/cortexai/cortex/blob/main/CHANGELOG.md) for details.
+
+            ## Downloads
+
+            | Platform | Installer |
+            |----------|-----------|
+            | Windows  | Cortex_x64_en-US.msi |
+            | macOS (Intel) | Cortex_x86_64.dmg |
+            | macOS (Apple Silicon) | Cortex_aarch64.dmg |
+            | Linux | cortex_amd64.AppImage |
+
+            ---
+            🔒 **Privacy-first** — 100% local, no telemetry, no cloud
+          releaseDraft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          args: ${{ matrix.tauri_target != '' && format('--target {0}', matrix.tauri_target) || '' }}

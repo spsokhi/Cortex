@@ -1,0 +1,10 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+sentence-transformers>=3.0.0
+chromadb>=0.5.0
+torch>=2.3.0
+# GPU acceleration (optional — comment out if CPU only)
+# torch>=2.3.0+cu121  # CUDA 12.1
+# torchvision>=0.18.0+cu121
+einops>=0.8.0  # Required by nomic-embed-text

@@ -1,0 +1,454 @@
+import { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Settings, Cpu, Database, Mic, Eye, Shield, Terminal, Save,
+  RotateCcw, ExternalLink, ChevronRight,
+} from "lucide-react";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { useUIStore } from "@/stores/uiStore";
+import { cn } from "@/utils/cn";
+
+type Section = "general" | "models" | "rag" | "voice" | "appearance" | "privacy" | "advanced";
+
+const SECTIONS: Array<{ id: Section; label: string; icon: React.ElementType; desc: string }> = [
+  { id: "general", label: "General", icon: Settings, desc: "App behavior & data" },
+  { id: "appearance", label: "Appearance", icon: Eye, desc: "Theme, fonts, layout" },
+  { id: "models", label: "Models", icon: Cpu, desc: "Ollama endpoint & defaults" },
+  { id: "rag", label: "RAG", icon: Database, desc: "Embeddings & retrieval" },
+  { id: "voice", label: "Voice", icon: Mic, desc: "Whisper & TTS" },
+  { id: "privacy", label: "Privacy", icon: Shield, desc: "Telemetry & storage" },
+  { id: "advanced", label: "Advanced", icon: Terminal, desc: "Debug & ports" },
+];
+
+export function SettingsRoute() {
+  const [activeSection, setActiveSection] = useState<Section>("general");
+  const { settings, updateSettings, resetSection, isDirty } = useSettingsStore();
+  const { toast } = useUIStore();
+
+  const handleSave = () => {
+    useSettingsStore.getState().markSaved();
+    toast("success", "Settings saved");
+  };
+
+  const handleReset = () => {
+    resetSection(activeSection);
+    toast("info", `${SECTIONS.find((s) => s.id === activeSection)?.label} settings reset`);
+  };
+
+  return (
+    <motion.div
+      key="settings"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex h-full"
+    >
+      {/* Sections list */}
+      <div className="w-52 flex-shrink-0 border-r border-cortex-border bg-cortex-surface flex flex-col">
+        <div className="px-4 py-4 border-b border-cortex-border">
+          <h1 className="text-sm font-semibold text-cortex-text">Settings</h1>
+          <p className="text-xs text-cortex-text-muted mt-0.5">App configuration</p>
+        </div>
+        <nav className="flex-1 py-2 overflow-y-auto">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setActiveSection(s.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors",
+                  activeSection === s.id
+                    ? "bg-cortex-accent/10 text-cortex-accent"
+                    : "text-cortex-text-muted hover:bg-cortex-surface-3 hover:text-cortex-text",
+                )}
+              >
+                <Icon size={14} />
+                {s.label}
+                {activeSection === s.id && (
+                  <ChevronRight size={12} className="ml-auto" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Version info */}
+        <div className="px-4 py-3 border-t border-cortex-border">
+          <p className="text-2xs text-cortex-text-dim">Cortex v0.1.0</p>
+          <p className="text-2xs text-cortex-text-dim">MIT License</p>
+        </div>
+      </div>
+
+      {/* Settings panel */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-cortex-border bg-cortex-surface/50">
+          <div>
+            <h2 className="text-sm font-semibold text-cortex-text">
+              {SECTIONS.find((s) => s.id === activeSection)?.label}
+            </h2>
+            <p className="text-xs text-cortex-text-muted mt-0.5">
+              {SECTIONS.find((s) => s.id === activeSection)?.desc}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={handleReset} className="cortex-button-ghost text-xs flex items-center gap-1.5">
+              <RotateCcw size={12} />
+              Reset
+            </button>
+            {isDirty && (
+              <button onClick={handleSave} className="cortex-button-primary text-xs flex items-center gap-1.5">
+                <Save size={12} />
+                Save changes
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          {activeSection === "general" && (
+            <GeneralSettings
+              settings={settings.general}
+              onChange={(v) => updateSettings({ general: v })}
+            />
+          )}
+          {activeSection === "models" && (
+            <ModelSettings
+              settings={settings.models}
+              onChange={(v) => updateSettings({ models: v })}
+            />
+          )}
+          {activeSection === "rag" && (
+            <RagSettings
+              settings={settings.rag}
+              onChange={(v) => updateSettings({ rag: v })}
+            />
+          )}
+          {activeSection === "voice" && (
+            <VoiceSettings
+              settings={settings.voice}
+              onChange={(v) => updateSettings({ voice: v })}
+            />
+          )}
+          {activeSection === "appearance" && (
+            <AppearanceSettings
+              settings={settings.appearance}
+              onChange={(v) => updateSettings({ appearance: v })}
+            />
+          )}
+          {activeSection === "privacy" && (
+            <PrivacySettings
+              settings={settings.privacy}
+              onChange={(v) => updateSettings({ privacy: v })}
+            />
+          )}
+          {activeSection === "advanced" && (
+            <AdvancedSettings
+              settings={settings.advanced}
+              onChange={(v) => updateSettings({ advanced: v })}
+            />
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Settings sections ─────────────────────────────────────────────────────
+
+function SettingRow({ label, description, children }: {
+  label: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-cortex-border last:border-0">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-cortex-text font-medium">{label}</p>
+        {description && <p className="text-xs text-cortex-text-muted mt-0.5">{description}</p>}
+      </div>
+      <div className="flex-shrink-0">{children}</div>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative w-9 h-5 rounded-full transition-colors duration-200",
+        checked ? "bg-cortex-accent" : "bg-cortex-surface-3 border border-cortex-border",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200",
+          checked && "translate-x-4",
+        )}
+      />
+    </button>
+  );
+}
+
+function GeneralSettings({ settings, onChange }: {
+  settings: ReturnType<typeof useSettingsStore.getState>["settings"]["general"];
+  onChange: (v: Partial<typeof settings>) => void;
+}) {
+  return (
+    <div>
+      <SettingRow label="Close to tray" description="Keep Cortex running in the background when closed">
+        <Toggle checked={settings.closeToTray} onChange={(v) => onChange({ closeToTray: v })} />
+      </SettingRow>
+      <SettingRow label="Start minimized" description="Launch minimized to tray">
+        <Toggle checked={settings.startMinimized} onChange={(v) => onChange({ startMinimized: v })} />
+      </SettingRow>
+      <SettingRow label="Auto-update check" description="Check for new Cortex releases on startup">
+        <Toggle checked={settings.autoUpdateCheck} onChange={(v) => onChange({ autoUpdateCheck: v })} />
+      </SettingRow>
+    </div>
+  );
+}
+
+function ModelSettings({ settings, onChange }: {
+  settings: ReturnType<typeof useSettingsStore.getState>["settings"]["models"];
+  onChange: (v: Partial<typeof settings>) => void;
+}) {
+  return (
+    <div>
+      <SettingRow label="Ollama endpoint" description="URL of your local Ollama instance">
+        <input
+          value={settings.ollamaEndpoint}
+          onChange={(e) => onChange({ ollamaEndpoint: e.target.value })}
+          className="cortex-input text-sm w-56 font-mono"
+        />
+      </SettingRow>
+      <SettingRow label="Default temperature" description="Controls randomness (0 = deterministic, 2 = creative)">
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min="0"
+            max="2"
+            step="0.1"
+            value={settings.defaultTemperature}
+            onChange={(e) => onChange({ defaultTemperature: parseFloat(e.target.value) })}
+            className="w-24 accent-cortex-accent"
+          />
+          <span className="text-xs font-mono text-cortex-text w-8 text-right">
+            {settings.defaultTemperature.toFixed(1)}
+          </span>
+        </div>
+      </SettingRow>
+      <SettingRow label="Context length" description="Maximum tokens in the context window">
+        <select
+          value={settings.defaultContextLength}
+          onChange={(e) => onChange({ defaultContextLength: parseInt(e.target.value) })}
+          className="cortex-input text-sm"
+        >
+          {[2048, 4096, 8192, 16384, 32768].map((v) => (
+            <option key={v} value={v}>{v.toLocaleString()}</option>
+          ))}
+        </select>
+      </SettingRow>
+      <SettingRow label="Request timeout" description="Seconds before a request times out">
+        <input
+          type="number"
+          min="10"
+          max="600"
+          value={settings.requestTimeout}
+          onChange={(e) => onChange({ requestTimeout: parseInt(e.target.value) })}
+          className="cortex-input text-sm w-20 font-mono"
+        />
+      </SettingRow>
+    </div>
+  );
+}
+
+function RagSettings({ settings, onChange }: {
+  settings: ReturnType<typeof useSettingsStore.getState>["settings"]["rag"];
+  onChange: (v: Partial<typeof settings>) => void;
+}) {
+  return (
+    <div>
+      <SettingRow label="Enable RAG" description="Use indexed documents as context for chat">
+        <Toggle checked={settings.enabled} onChange={(v) => onChange({ enabled: v })} />
+      </SettingRow>
+      <SettingRow label="Embedding model" description="Local model for generating embeddings">
+        <input
+          value={settings.embeddingModel}
+          onChange={(e) => onChange({ embeddingModel: e.target.value })}
+          className="cortex-input text-sm w-48 font-mono"
+        />
+      </SettingRow>
+      <SettingRow label="Chunk size" description="Tokens per document chunk">
+        <input
+          type="number"
+          value={settings.chunkSize}
+          onChange={(e) => onChange({ chunkSize: parseInt(e.target.value) })}
+          className="cortex-input text-sm w-20 font-mono"
+        />
+      </SettingRow>
+      <SettingRow label="Top K results" description="Number of chunks to retrieve per query">
+        <input
+          type="number"
+          min="1"
+          max="20"
+          value={settings.topK}
+          onChange={(e) => onChange({ topK: parseInt(e.target.value) })}
+          className="cortex-input text-sm w-16 font-mono"
+        />
+      </SettingRow>
+      <SettingRow label="Index on upload" description="Automatically index files when added">
+        <Toggle checked={settings.indexOnUpload} onChange={(v) => onChange({ indexOnUpload: v })} />
+      </SettingRow>
+    </div>
+  );
+}
+
+function VoiceSettings({ settings, onChange }: {
+  settings: ReturnType<typeof useSettingsStore.getState>["settings"]["voice"];
+  onChange: (v: Partial<typeof settings>) => void;
+}) {
+  return (
+    <div>
+      <SettingRow label="Enable voice" description="Allow voice input via microphone">
+        <Toggle checked={settings.enabled} onChange={(v) => onChange({ enabled: v })} />
+      </SettingRow>
+      <SettingRow label="Whisper model" description="Larger models are more accurate but slower">
+        <select
+          value={settings.whisperModel}
+          onChange={(e) => onChange({ whisperModel: e.target.value as typeof settings.whisperModel })}
+          className="cortex-input text-sm"
+        >
+          {["tiny", "base", "small", "medium", "large"].map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+      </SettingRow>
+      <SettingRow label="Language" description="Primary language for speech recognition">
+        <select
+          value={settings.language}
+          onChange={(e) => onChange({ language: e.target.value })}
+          className="cortex-input text-sm"
+        >
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="zh">Chinese</option>
+          <option value="ja">Japanese</option>
+          <option value="auto">Auto-detect</option>
+        </select>
+      </SettingRow>
+    </div>
+  );
+}
+
+function AppearanceSettings({ settings, onChange }: {
+  settings: ReturnType<typeof useSettingsStore.getState>["settings"]["appearance"];
+  onChange: (v: Partial<typeof settings>) => void;
+}) {
+  return (
+    <div>
+      <SettingRow label="Font size" description="UI text size">
+        <select
+          value={settings.fontSize}
+          onChange={(e) => onChange({ fontSize: e.target.value as typeof settings.fontSize })}
+          className="cortex-input text-sm"
+        >
+          <option value="sm">Small</option>
+          <option value="md">Medium</option>
+          <option value="lg">Large</option>
+        </select>
+      </SettingRow>
+      <SettingRow label="Compact mode" description="Reduce padding and spacing">
+        <Toggle checked={settings.compactMode} onChange={(v) => onChange({ compactMode: v })} />
+      </SettingRow>
+      <SettingRow label="Show timestamps" description="Show message timestamps on hover">
+        <Toggle checked={settings.showTimestamps} onChange={(v) => onChange({ showTimestamps: v })} />
+      </SettingRow>
+      <SettingRow label="Show token count" description="Display token count per message">
+        <Toggle checked={settings.showTokenCount} onChange={(v) => onChange({ showTokenCount: v })} />
+      </SettingRow>
+    </div>
+  );
+}
+
+function PrivacySettings({ settings, onChange }: {
+  settings: ReturnType<typeof useSettingsStore.getState>["settings"]["privacy"];
+  onChange: (v: Partial<typeof settings>) => void;
+}) {
+  return (
+    <div>
+      <div className="p-4 rounded-xl bg-cortex-success/5 border border-cortex-success/20 mb-4">
+        <p className="text-xs font-medium text-cortex-success">Privacy by default</p>
+        <p className="text-xs text-cortex-text-muted mt-1">
+          Cortex never sends your data to the cloud. All processing is local.
+        </p>
+      </div>
+      <SettingRow label="Telemetry" description="Anonymous usage statistics (disabled by default)">
+        <Toggle checked={settings.telemetryEnabled} onChange={(v) => onChange({ telemetryEnabled: v })} />
+      </SettingRow>
+      <SettingRow label="Clear history on exit" description="Delete all conversations when Cortex closes">
+        <Toggle checked={settings.clearHistoryOnExit} onChange={(v) => onChange({ clearHistoryOnExit: v })} />
+      </SettingRow>
+      <SettingRow label="Encrypt storage" description="Encrypt local database with a passphrase">
+        <Toggle checked={settings.encryptStorage} onChange={(v) => onChange({ encryptStorage: v })} />
+      </SettingRow>
+      <SettingRow label="History retention (days)" description="Auto-delete conversations older than N days">
+        <input
+          type="number"
+          min="0"
+          max="3650"
+          value={settings.historyRetentionDays}
+          onChange={(e) => onChange({ historyRetentionDays: parseInt(e.target.value) })}
+          className="cortex-input text-sm w-20 font-mono"
+        />
+      </SettingRow>
+    </div>
+  );
+}
+
+function AdvancedSettings({ settings, onChange }: {
+  settings: ReturnType<typeof useSettingsStore.getState>["settings"]["advanced"];
+  onChange: (v: Partial<typeof settings>) => void;
+}) {
+  return (
+    <div>
+      <div className="p-3 rounded-lg bg-cortex-warning/5 border border-cortex-warning/20 mb-4">
+        <p className="text-xs text-cortex-warning">
+          Changes here may affect stability. Restart required for some options.
+        </p>
+      </div>
+      <SettingRow label="Debug mode" description="Enable verbose logging">
+        <Toggle checked={settings.debugMode} onChange={(v) => onChange({ debugMode: v })} />
+      </SettingRow>
+      <SettingRow label="Log level" description="Minimum severity to log">
+        <select
+          value={settings.logLevel}
+          onChange={(e) => onChange({ logLevel: e.target.value as typeof settings.logLevel })}
+          className="cortex-input text-sm font-mono"
+        >
+          {["error", "warn", "info", "debug"].map((l) => (
+            <option key={l} value={l}>{l}</option>
+          ))}
+        </select>
+      </SettingRow>
+      <SettingRow label="Embedding service port" description="Port for the Python embeddings service">
+        <input
+          type="number"
+          value={settings.embeddingServicePort}
+          onChange={(e) => onChange({ embeddingServicePort: parseInt(e.target.value) })}
+          className="cortex-input text-sm w-20 font-mono"
+        />
+      </SettingRow>
+      <SettingRow label="Whisper service port" description="Port for the Python Whisper service">
+        <input
+          type="number"
+          value={settings.whisperServicePort}
+          onChange={(e) => onChange({ whisperServicePort: parseInt(e.target.value) })}
+          className="cortex-input text-sm w-20 font-mono"
+        />
+      </SettingRow>
+    </div>
+  );
+}

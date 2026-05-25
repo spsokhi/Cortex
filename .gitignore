@@ -1,0 +1,77 @@
+# Build outputs
+dist/
+dist-ssr/
+*.local
+
+# Rust
+src-tauri/target/
+
+# Node
+node_modules/
+.pnpm-store/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+*.pyc
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/WixTools/
+
+# Cortex runtime data (user data — never commit)
+cortex-data/
+*.db
+*.db-shm
+*.db-wal
+*.db-wal2
+models/
+embeddings-cache/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Whisper models
+*.bin
+*.gguf
+*.pt
+!src-tauri/Cargo.lock
