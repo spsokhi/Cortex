@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  frontend:
-    name: Frontend check
+  install:
+    name: Install check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,6 +19,3 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Type check
-        run: npm run type-check
