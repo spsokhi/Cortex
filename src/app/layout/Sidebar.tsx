@@ -48,11 +48,14 @@ export function Sidebar() {
   const location = useLocation();
   const [personasOpen, setPersonasOpen] = useState(false);
 
-  const { conversations, activeConversationId, createConversation, deleteConversation } =
+  const { conversations, activeConversationId, createConversation, deleteConversation, addTag, removeTag } =
     useChatStore();
   const { activeModelId } = useModelStore();
   const { activePersonaId, setActivePersona } = usePersonaStore();
   const activePersona = PERSONAS.find((p) => p.id === activePersonaId) ?? null;
+  const [filterTag, setFilterTag] = useState<string | null>(null);
+
+  const allTags = [...new Set(conversations.flatMap((c) => c.tags))].sort();
 
   const handleNewChat = useCallback(() => {
     const personaId = usePersonaStore.getState().activePersonaId;
@@ -61,8 +64,9 @@ export function Sidebar() {
     navigate("/chat");
   }, [createConversation, activeModelId, navigate]);
 
-  const pinnedConversations = conversations.filter((c) => c.pinned);
-  const recentConversations = conversations
+  const filtered = filterTag ? conversations.filter((c) => c.tags.includes(filterTag)) : conversations;
+  const pinnedConversations = filtered.filter((c) => c.pinned);
+  const recentConversations = filtered
     .filter((c) => !c.pinned)
     .slice(0, 20)
     .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -257,6 +261,26 @@ export function Sidebar() {
       {/* Conversation history (only when expanded & on chat tab) */}
       {isExpanded && (
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2 space-y-1 no-scrollbar">
+          {/* Tag filter bar */}
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap gap-1 px-2 py-1.5 border-b border-cortex-border">
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setFilterTag(filterTag === tag ? null : tag)}
+                  className={cn(
+                    "text-2xs px-2 py-0.5 rounded-full border transition-colors",
+                    filterTag === tag
+                      ? tagColorClasses(tag)
+                      : "text-cortex-text-dim border-cortex-border hover:border-cortex-accent/40 hover:text-cortex-text-muted",
+                  )}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
+
           {pinnedConversations.length > 0 && (
             <div>
               <div className="flex items-center gap-1.5 px-2 py-1 text-2xs text-cortex-text-dim uppercase tracking-wider font-medium">
@@ -271,9 +295,12 @@ export function Sidebar() {
                   lastMessage={c.lastMessage}
                   updatedAt={c.updatedAt}
                   isActive={activeConversationId === c.id}
+                  tags={c.tags}
                   pinned
                   onSelect={() => navigate(`/chat/${c.id}`)}
                   onDelete={() => deleteConversation(c.id)}
+                  onAddTag={(tag) => addTag(c.id, tag)}
+                  onRemoveTag={(tag) => removeTag(c.id, tag)}
                 />
               ))}
             </div>
@@ -282,7 +309,7 @@ export function Sidebar() {
           {recentConversations.length > 0 && (
             <div>
               <div className="px-2 py-1 text-2xs text-cortex-text-dim uppercase tracking-wider font-medium">
-                Recent
+                {filterTag ? `Tagged: ${filterTag}` : "Recent"}
               </div>
               {recentConversations.map((c) => (
                 <ConversationItem
@@ -292,8 +319,11 @@ export function Sidebar() {
                   lastMessage={c.lastMessage}
                   updatedAt={c.updatedAt}
                   isActive={activeConversationId === c.id}
+                  tags={c.tags}
                   onSelect={() => navigate(`/chat/${c.id}`)}
                   onDelete={() => deleteConversation(c.id)}
+                  onAddTag={(tag) => addTag(c.id, tag)}
+                  onRemoveTag={(tag) => removeTag(c.id, tag)}
                 />
               ))}
             </div>
@@ -304,6 +334,11 @@ export function Sidebar() {
               No conversations yet.
               <br />
               Start a new chat above.
+            </div>
+          )}
+          {filterTag && filtered.length === 0 && conversations.length > 0 && (
+            <div className="px-3 py-6 text-center text-cortex-text-dim text-xs">
+              No chats tagged "{filterTag}".
             </div>
           )}
         </div>
@@ -340,6 +375,20 @@ export function Sidebar() {
   );
 }
 
+const TAG_COLORS = [
+  "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  "bg-green-500/15 text-green-400 border-green-500/30",
+  "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  "bg-pink-500/15 text-pink-400 border-pink-500/30",
+  "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+];
+
+function tagColorClasses(tag: string) {
+  const hash = [...tag].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return TAG_COLORS[hash % TAG_COLORS.length];
+}
+
 interface ConversationItemProps {
   id: string;
   title: string;
@@ -347,8 +396,11 @@ interface ConversationItemProps {
   updatedAt: number;
   isActive: boolean;
   pinned?: boolean;
+  tags?: string[];
   onSelect: () => void;
   onDelete: () => void;
+  onAddTag?: (tag: string) => void;
+  onRemoveTag?: (tag: string) => void;
 }
 
 function ConversationItem({
@@ -356,21 +408,33 @@ function ConversationItem({
   lastMessage,
   updatedAt,
   isActive,
+  tags = [],
   onSelect,
   onDelete,
+  onAddTag,
+  onRemoveTag,
 }: ConversationItemProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [tagInput, setTagInput] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const tagInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!menuOpen) { setConfirmDelete(false); return; }
+    if (!menuOpen) { setConfirmDelete(false); setTagInput(""); return; }
     const handler = (e: MouseEvent) => {
       if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
+
+  const handleAddTag = () => {
+    const t = tagInput.trim();
+    if (t && !tags.includes(t)) { onAddTag?.(t); }
+    setTagInput("");
+    tagInputRef.current?.focus();
+  };
 
   return (
     <div
@@ -388,6 +452,15 @@ function ConversationItem({
           <p className="text-2xs text-cortex-text-dim truncate mt-0.5">{truncate(lastMessage, 38)}</p>
         )}
         <p className="text-2xs text-cortex-text-dim/60 mt-0.5">{formatRelativeTime(updatedAt)}</p>
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {tags.map((tag) => (
+              <span key={tag} className={cn("text-2xs px-1.5 py-0.5 rounded-full border", tagColorClasses(tag))}>
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Three-dot menu trigger */}
@@ -408,9 +481,35 @@ function ConversationItem({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -4 }}
             transition={{ duration: 0.1 }}
-            className="absolute right-0 top-7 z-50 w-40 bg-cortex-surface-2 border border-cortex-border rounded-xl shadow-cortex-lg overflow-hidden"
+            className="absolute right-0 top-7 z-50 w-48 bg-cortex-surface-2 border border-cortex-border rounded-xl shadow-cortex-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Tag management */}
+            <div className="px-2.5 py-2 border-b border-cortex-border space-y-1.5">
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {tags.map((tag) => (
+                    <span key={tag} className={cn("flex items-center gap-0.5 text-2xs px-1.5 py-0.5 rounded-full border", tagColorClasses(tag))}>
+                      {tag}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onRemoveTag?.(tag); }}
+                        className="hover:opacity-70 leading-none"
+                      >×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <input
+                ref={tagInputRef}
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") handleAddTag(); }}
+                placeholder="Add tag… (Enter)"
+                className="w-full bg-cortex-surface-3 border border-cortex-border rounded-lg px-2 py-1 text-2xs text-cortex-text placeholder-cortex-text-dim outline-none focus:border-cortex-accent transition-colors"
+              />
+            </div>
+
+            {/* Delete */}
             {!confirmDelete ? (
               <button
                 onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}

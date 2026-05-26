@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BrainCircuit, Sparkles, FileText, Code2, Search as SearchIcon, Download } from "lucide-react";
@@ -91,13 +91,13 @@ export function ChatRoute() {
     }
   };
 
-  const handleSend = async (message: string) => {
+  const handleSend = useCallback(async (message: string) => {
     if (!activeConversation) {
       const conv = createConversation(activeModelId);
       navigate(`/chat/${conv.id}`);
     }
     await sendMessage(message, ragEnabled);
-  };
+  }, [activeConversation, activeModelId, createConversation, navigate, sendMessage, ragEnabled]);
 
   const messages = activeConversation?.messages ?? [];
   const isEmpty = messages.length === 0;
@@ -154,6 +154,7 @@ export function ChatRoute() {
                 showTimestamp={settings.appearance.showTimestamps}
                 isLast={i === messages.length - 1}
                 onRegenerate={() => void regenerate(ragEnabled)}
+                onQuickAction={(prompt) => void handleSend(prompt)}
               />
             ))}
             <div ref={messagesEndRef} className="h-4" />

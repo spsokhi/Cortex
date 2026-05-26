@@ -5,6 +5,7 @@ import { useModelStore } from "@/stores/modelStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useFileStore } from "@/stores/fileStore";
 import { usePersonaStore } from "@/stores/personaStore";
+import { useStatsStore } from "@/stores/statsStore";
 import { PERSONAS } from "@/data/personas";
 import { ollamaClient } from "@/services/api/ollama";
 import type { StreamEvent } from "@/types/chat";
@@ -146,6 +147,14 @@ export function useChat() {
           status: "complete",
           content: result.content,
           tokenCount: result.completionTokens,
+        });
+
+        useStatsStore.getState().track({
+          messages: 1,
+          tokens: result.completionTokens ?? 0,
+          words: result.content.trim().split(/\s+/).filter(Boolean).length,
+          modelId: activeModelId,
+          personaId: usePersonaStore.getState().activePersonaId,
         });
 
         // Auto-title after the first exchange — non-blocking AI call

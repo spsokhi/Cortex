@@ -3,9 +3,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Copy, Check, Bot, User, AlertCircle, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { Copy, Check, Bot, User, AlertCircle, ChevronDown, ChevronUp, RotateCcw, AlignLeft, Lightbulb, ArrowRight, StickyNote } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Message } from "@/types/chat";
+import { useNotesStore } from "@/stores/notesStore";
+import { useUIStore } from "@/stores/uiStore";
 import { cn } from "@/utils/cn";
 import { formatAbsoluteTime } from "@/utils/format";
 
@@ -14,6 +16,7 @@ interface ChatMessageProps {
   showTimestamp?: boolean;
   isLast?: boolean;
   onRegenerate?: () => void;
+  onQuickAction?: (prompt: string) => void;
 }
 
 export const ChatMessage = memo(function ChatMessage({
@@ -21,6 +24,7 @@ export const ChatMessage = memo(function ChatMessage({
   showTimestamp = false,
   isLast = false,
   onRegenerate,
+  onQuickAction,
 }: ChatMessageProps) {
   const isUser = message.role === "user";
   const isStreaming = message.status === "streaming";
@@ -107,12 +111,45 @@ export const ChatMessage = memo(function ChatMessage({
           <CitationsBlock citations={message.citations} />
         )}
 
-        {/* Token count + Regenerate */}
-        <div className="flex items-center gap-3">
+        {/* Action row */}
+        <div className="flex items-center gap-3 flex-wrap">
           {message.tokenCount && !isStreaming && (
             <span className="text-2xs text-cortex-text-dim">
               {message.tokenCount.toLocaleString()} tokens
             </span>
+          )}
+          {!isUser && !isStreaming && message.content && (
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <QuickAction
+                label="Summarize"
+                icon={<AlignLeft size={11} />}
+                onClick={() => onQuickAction?.("Summarize the above response in 2-3 concise sentences.")}
+              />
+              <QuickAction
+                label="Explain simpler"
+                icon={<Lightbulb size={11} />}
+                onClick={() => onQuickAction?.("Explain the above in much simpler terms, as if explaining to a complete beginner.")}
+              />
+              <QuickAction
+                label="Continue"
+                icon={<ArrowRight size={11} />}
+                onClick={() => onQuickAction?.("Continue from where you left off.")}
+              />
+              <QuickAction
+                label="Save to note"
+                icon={<StickyNote size={11} />}
+                onClick={() => {
+                  const { createNote, updateNote } = useNotesStore.getState();
+                  const note = createNote();
+                  const preview = message.content.slice(0, 60).replace(/\n/g, " ");
+                  updateNote(note.id, {
+                    title: preview + (message.content.length > 60 ? "…" : ""),
+                    content: message.content,
+                  });
+                  useUIStore.getState().toast("success", "Saved to Notes");
+                }}
+              />
+            </div>
           )}
           {isLast && !isUser && !isStreaming && onRegenerate && (
             <button
@@ -256,6 +293,19 @@ function CopyButton({ text }: { text: string }) {
       className="p-1 rounded bg-cortex-surface-3 border border-cortex-border text-cortex-text-dim hover:text-cortex-text transition-colors"
     >
       {copied ? <Check size={11} className="text-cortex-success" /> : <Copy size={11} />}
+    </button>
+  );
+}
+
+function QuickAction({ label, icon, onClick }: { label: string; icon: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      className="flex items-center gap-1 text-2xs text-cortex-text-dim hover:text-cortex-accent hover:bg-cortex-surface-3 px-1.5 py-0.5 rounded-md transition-colors"
+    >
+      {icon}
+      <span>{label}</span>
     </button>
   );
 }

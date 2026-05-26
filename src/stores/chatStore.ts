@@ -25,6 +25,8 @@ interface ChatState {
   setGenerating: (generating: boolean, streamingId?: string) => void;
   clearActiveConversation: () => void;
   updateConversationSummary: (conversation: Conversation) => void;
+  addTag: (id: string, tag: string) => void;
+  removeTag: (id: string, tag: string) => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -168,6 +170,34 @@ export const useChatStore = create<ChatState>()(
         clearActiveConversation: () => {
           set({ activeConversationId: null, activeConversation: null });
         },
+
+        addTag: (id, tag) =>
+          set((state) => {
+            const add = (tags: string[]) => tags.includes(tag) ? tags : [...tags, tag];
+            return {
+              conversations: state.conversations.map((c) => c.id === id ? { ...c, tags: add(c.tags) } : c),
+              activeConversation: state.activeConversation?.id === id
+                ? { ...state.activeConversation, tags: add(state.activeConversation.tags) }
+                : state.activeConversation,
+              savedConversations: state.savedConversations[id]
+                ? { ...state.savedConversations, [id]: { ...state.savedConversations[id], tags: add(state.savedConversations[id].tags) } }
+                : state.savedConversations,
+            };
+          }),
+
+        removeTag: (id, tag) =>
+          set((state) => {
+            const remove = (tags: string[]) => tags.filter((t) => t !== tag);
+            return {
+              conversations: state.conversations.map((c) => c.id === id ? { ...c, tags: remove(c.tags) } : c),
+              activeConversation: state.activeConversation?.id === id
+                ? { ...state.activeConversation, tags: remove(state.activeConversation.tags) }
+                : state.activeConversation,
+              savedConversations: state.savedConversations[id]
+                ? { ...state.savedConversations, [id]: { ...state.savedConversations[id], tags: remove(state.savedConversations[id].tags) } }
+                : state.savedConversations,
+            };
+          }),
 
         updateConversationSummary: (conversation) => {
           const lastMsg = conversation.messages.at(-1);

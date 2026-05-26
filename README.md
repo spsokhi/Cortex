@@ -246,6 +246,9 @@ pnpm tauri:build
 - [x] Light / dark theme
 - [x] Prompt library (save & reuse prompts)
 - [x] Voice input (Web Speech API — Chrome/Edge)
+- [x] Chat tags & folders (filter conversations by tag)
+- [x] Quick actions on messages (Summarize, Explain simpler, Continue, Save to note)
+- [x] Stats dashboard (messages, tokens, model & persona usage)
 
 ---
 

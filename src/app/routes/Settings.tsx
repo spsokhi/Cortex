@@ -2,13 +2,16 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Settings, Cpu, Database, Mic, Eye, Shield, Terminal, Save,
-  RotateCcw, ChevronRight,
+  RotateCcw, ChevronRight, BarChart2,
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
+import { useStatsStore } from "@/stores/statsStore";
+import { useChatStore } from "@/stores/chatStore";
+import { PERSONAS } from "@/data/personas";
 import { cn } from "@/utils/cn";
 
-type Section = "general" | "models" | "rag" | "voice" | "appearance" | "privacy" | "advanced";
+type Section = "general" | "models" | "rag" | "voice" | "appearance" | "privacy" | "advanced" | "stats";
 
 const SECTIONS: Array<{ id: Section; label: string; icon: React.ElementType; desc: string }> = [
   { id: "general", label: "General", icon: Settings, desc: "App behavior & data" },
@@ -18,6 +21,7 @@ const SECTIONS: Array<{ id: Section; label: string; icon: React.ElementType; des
   { id: "voice", label: "Voice", icon: Mic, desc: "Whisper & TTS" },
   { id: "privacy", label: "Privacy", icon: Shield, desc: "Telemetry & storage" },
   { id: "advanced", label: "Advanced", icon: Terminal, desc: "Debug & ports" },
+  { id: "stats", label: "Stats", icon: BarChart2, desc: "Your usage at a glance" },
 ];
 
 export function SettingsRoute() {
@@ -147,6 +151,7 @@ export function SettingsRoute() {
               onChange={(v) => updateSettings({ advanced: v })}
             />
           )}
+          {activeSection === "stats" && <StatsSection />}
         </div>
       </div>
     </motion.div>
@@ -467,6 +472,99 @@ function AdvancedSettings({ settings, onChange }: {
           className="cortex-input text-sm w-20 font-mono"
         />
       </SettingRow>
+    </div>
+  );
+}
+
+function StatsSection() {
+  const { totalMessages, totalTokens, totalWords, modelUsage, personaUsage, firstUsed, reset } =
+    useStatsStore();
+  const totalConversations = useChatStore((s) => s.conversations.length);
+  const { toast } = useUIStore();
+
+  const topModels = Object.entries(modelUsage).sort((a, b) => b[1] - a[1]);
+  const topPersonas = Object.entries(personaUsage).sort((a, b) => b[1] - a[1]);
+  const maxModel = topModels[0]?.[1] ?? 1;
+  const maxPersona = topPersonas[0]?.[1] ?? 1;
+
+  const sinceText = firstUsed
+    ? new Date(firstUsed).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
+    : "No activity yet";
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: "Conversations", value: totalConversations.toLocaleString() },
+          { label: "Messages Sent", value: totalMessages.toLocaleString() },
+          { label: "Tokens Generated", value: totalTokens > 999 ? `${(totalTokens / 1000).toFixed(1)}k` : totalTokens.toString() },
+          { label: "Words Generated", value: totalWords > 999 ? `${(totalWords / 1000).toFixed(1)}k` : totalWords.toString() },
+        ].map((stat) => (
+          <div key={stat.label} className="p-4 rounded-xl bg-cortex-surface-2 border border-cortex-border">
+            <p className="text-2xs text-cortex-text-muted uppercase tracking-wider">{stat.label}</p>
+            <p className="text-2xl font-bold text-cortex-text mt-1">{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {topModels.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-cortex-text mb-3">Model Usage</p>
+          <div className="space-y-2">
+            {topModels.map(([model, count]) => (
+              <div key={model}>
+                <div className="flex justify-between text-2xs text-cortex-text-muted mb-1">
+                  <span className="font-mono truncate max-w-[70%]">{model}</span>
+                  <span>{count} responses</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-cortex-surface-3 overflow-hidden">
+                  <div className="h-full rounded-full bg-cortex-accent transition-all" style={{ width: `${(count / maxModel) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {topPersonas.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-cortex-text mb-3">Persona Usage</p>
+          <div className="space-y-2">
+            {topPersonas.map(([personaId, count]) => {
+              const persona = PERSONAS.find((p) => p.id === personaId);
+              return (
+                <div key={personaId}>
+                  <div className="flex justify-between text-2xs text-cortex-text-muted mb-1">
+                    <span>{persona ? `${persona.emoji} ${persona.name}` : personaId}</span>
+                    <span>{count} uses</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-cortex-surface-3 overflow-hidden">
+                    <div className="h-full rounded-full bg-cortex-success transition-all" style={{ width: `${(count / maxPersona) * 100}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {totalMessages === 0 && (
+        <div className="py-8 text-center text-cortex-text-dim">
+          <BarChart2 size={32} className="mx-auto mb-3 opacity-20" />
+          <p className="text-sm">No activity tracked yet.</p>
+          <p className="text-xs mt-1 opacity-70">Stats update as you use the app.</p>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between pt-2 border-t border-cortex-border">
+        <p className="text-2xs text-cortex-text-dim">Using Cortex since {sinceText}</p>
+        <button
+          onClick={() => { reset(); toast("info", "Stats reset"); }}
+          className="text-2xs text-cortex-text-dim hover:text-cortex-error transition-colors"
+        >
+          Reset stats
+        </button>
+      </div>
     </div>
   );
 }
