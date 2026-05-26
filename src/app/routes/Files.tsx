@@ -1,10 +1,11 @@
-import { useCallback, useState, useEffect } from "react";
-import { useDropzone } from "react-dropzone";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload, Search, FolderOpen, FileText, File, Image,
   Code2, Trash2, RefreshCw, CheckCircle2, Clock, AlertCircle,
 } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import { useFileStore } from "@/stores/fileStore";
 import { useUIStore } from "@/stores/uiStore";
 import { cn } from "@/utils/cn";
@@ -36,35 +37,129 @@ export function FilesRoute() {
     useFileStore();
   const { toast } = useUIStore();
   const [sortBy, setSortBy] = useState<"name" | "size" | "date">("date");
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      for (const file of acceptedFiles) {
-        const type = getFileType(file.name);
+  // Tauri native drag-drop: receives real OS file paths.
+  // Uses [] deps + cancelled flag to avoid double-registration when React
+  // re-renders before the async onDragDropEvent().then() resolves.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+
+    getCurrentWindow()
+      .onDragDropEvent(async (event) => {
+        const payload = event.payload;
+
+        if (payload.type === "over") {
+          setIsDragOver(true);
+        } else if (payload.type === "leave") {
+          setIsDragOver(false);
+        } else if (payload.type === "drop") {
+          setIsDragOver(false);
+          const paths = payload.paths;
+          if (!paths.length) return;
+
+          // Read store actions directly — no stale closure risk with [] deps
+          const { addFile } = useFileStore.getState();
+          const { toast } = useUIStore.getState();
+
+          let added = 0;
+          for (const filePath of paths) {
+            const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+            const fileType = getFileType(fileName);
+            const fileId = nanoid();
+
+            addFile({
+              id: fileId,
+              name: fileName,
+              path: filePath,
+              type: fileType,
+              size: 0,
+              mimeType: "",
+              indexStatus: "pending",
+              tags: [],
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            });
+            added++;
+
+            if (fileType !== "image" && fileType !== "unknown") {
+              useFileStore.getState().updateFile(fileId, { indexStatus: "indexing" });
+              try {
+                const text = await readTextFile(filePath);
+                const chunks = chunkText(text, 600, 80);
+                useFileStore.getState().updateFile(fileId, {
+                  size: text.length,
+                  indexStatus: "indexed",
+                  content: text,
+                  chunks,
+                  chunkCount: chunks.length,
+                  indexedAt: Date.now(),
+                });
+              } catch {
+                useFileStore.getState().updateFile(fileId, {
+                  indexStatus: "error",
+                  error: "Permission denied — try the browse button instead",
+                });
+              }
+            } else {
+              useFileStore.getState().updateFile(fileId, {
+                indexStatus: "skipped",
+                error: fileType === "image" ? "Image content not indexed" : undefined,
+              });
+            }
+          }
+
+          if (added > 0) {
+            toast("success", `${added} file${added !== 1 ? "s" : ""} added`);
+          }
+        }
+      })
+      .then((fn) => {
+        if (cancelled) fn(); // cleanup ran before Promise resolved — unlisten immediately
+        else unlisten = fn;
+      })
+      .catch(() => {}); // not in Tauri context
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Click-to-browse: plain FileReader on manually selected files
+  const handleFileInput = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selected = Array.from(e.target.files ?? []);
+      e.target.value = "";
+      if (!selected.length) return;
+
+      for (const file of selected) {
+        const fileType = getFileType(file.name);
         const fileId = nanoid();
-        const newFile: IndexedFile = {
+
+        addFile({
           id: fileId,
           name: file.name,
           path: file.name,
-          type,
+          type: fileType,
           size: file.size,
           mimeType: file.type,
           indexStatus: "pending",
           tags: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
-        };
-        addFile(newFile);
+        });
 
-        // Read and chunk text content for RAG
-        if (type !== "image" && type !== "unknown") {
+        if (fileType !== "image" && fileType !== "unknown") {
           useFileStore.getState().updateFile(fileId, { indexStatus: "indexing" });
-
           const reader = new FileReader();
-          reader.onload = (e) => {
-            const text = (e.target?.result as string) ?? "";
+          reader.onload = (ev) => {
+            const text = (ev.target?.result as string) ?? "";
             const chunks = chunkText(text, 600, 80);
             useFileStore.getState().updateFile(fileId, {
+              size: text.length,
               indexStatus: "indexed",
               content: text,
               chunks,
@@ -82,38 +177,15 @@ export function FilesRoute() {
         } else {
           useFileStore.getState().updateFile(fileId, {
             indexStatus: "skipped",
-            error: type === "image" ? "Image content not indexed" : undefined,
+            error: fileType === "image" ? "Image content not indexed" : undefined,
           });
         }
       }
-      toast("success", `${acceptedFiles.length} file${acceptedFiles.length > 1 ? "s" : ""} added`);
+
+      toast("success", `${selected.length} file${selected.length !== 1 ? "s" : ""} added`);
     },
     [addFile, toast],
   );
-
-  // Tauri blocks native drag-drop — prevent default so react-dropzone can handle it
-  useEffect(() => {
-    const prevent = (e: DragEvent) => e.preventDefault();
-    document.addEventListener("dragover", prevent);
-    document.addEventListener("drop", prevent);
-    return () => {
-      document.removeEventListener("dragover", prevent);
-      document.removeEventListener("drop", prevent);
-    };
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    noClick: false,
-    accept: {
-      "application/pdf": [".pdf"],
-      "text/plain": [".txt"],
-      "text/markdown": [".md", ".markdown"],
-      "text/x-python": [".py"],
-      "text/javascript": [".js", ".ts"],
-      "image/*": [".jpg", ".jpeg", ".png", ".webp"],
-    },
-  });
 
   const displayFiles = filteredFiles().sort((a, b) => {
     if (sortBy === "name") return a.name.localeCompare(b.name);
@@ -152,24 +224,31 @@ export function FilesRoute() {
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {/* Drop zone */}
         <div
-          {...getRootProps()}
+          onClick={() => fileInputRef.current?.click()}
           className={cn(
             "relative flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed cursor-pointer transition-all",
-            isDragActive
+            isDragOver
               ? "border-cortex-accent bg-cortex-accent/5 scale-[1.01]"
               : "border-cortex-border hover:border-cortex-accent/40 hover:bg-cortex-surface-2",
           )}
         >
-          <input {...getInputProps()} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.txt,.md,.markdown,.py,.js,.ts,.jpg,.jpeg,.png,.webp"
+            className="hidden"
+            onChange={handleFileInput}
+          />
           <Upload
             size={24}
             className={cn(
               "mb-3 transition-colors",
-              isDragActive ? "text-cortex-accent" : "text-cortex-text-dim",
+              isDragOver ? "text-cortex-accent" : "text-cortex-text-dim",
             )}
           />
           <p className="text-sm font-medium text-cortex-text">
-            {isDragActive ? "Drop files here" : "Drop files or click to browse"}
+            {isDragOver ? "Drop files here" : "Drop files or click to browse"}
           </p>
           <p className="text-xs text-cortex-text-muted mt-1">
             PDF, TXT, Markdown, Python, TypeScript, Images
@@ -211,7 +290,7 @@ export function FilesRoute() {
             <FolderOpen size={40} className="mx-auto mb-3 opacity-20" />
             <p className="text-sm">No files yet</p>
             <p className="text-xs mt-1">
-              Drop files above to index them for AI search
+              Drop files above or click to browse
             </p>
           </div>
         )}
