@@ -42,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const { sidebarState, setSidebarTab, setSearchOpen } = useUIStore();
+  const { sidebarState, setSidebarTab, setCommandPalette } = useUIStore();
   const isExpanded = sidebarState === "expanded";
   const navigate = useNavigate();
   const location = useLocation();
@@ -82,7 +82,7 @@ export function Sidebar() {
       <div className="flex flex-col gap-0.5 p-2 border-b border-cortex-border">
         {/* Search */}
         <button
-          onClick={() => setSearchOpen(true)}
+          onClick={() => setCommandPalette(true)}
           className={cn(
             "flex items-center gap-3 px-2 py-2 rounded-lg text-cortex-text-muted",
             "hover:bg-cortex-surface-3 hover:text-cortex-text transition-all duration-150",

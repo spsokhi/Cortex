@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Settings, Cpu, Database, Mic, Eye, Shield, Terminal, Save,
-  RotateCcw, ChevronRight, BarChart2,
+  RotateCcw, ChevronRight, BarChart2, Download,
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -481,6 +481,7 @@ function StatsSection() {
     useStatsStore();
   const totalConversations = useChatStore((s) => s.conversations.length);
   const { toast } = useUIStore();
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const topModels = Object.entries(modelUsage).sort((a, b) => b[1] - a[1]);
   const topPersonas = Object.entries(personaUsage).sort((a, b) => b[1] - a[1]);
@@ -490,6 +491,48 @@ function StatsSection() {
   const sinceText = firstUsed
     ? new Date(firstUsed).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
     : "No activity yet";
+
+  const handleExport = async () => {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+    const lines = [
+      "# Cortex Stats Report",
+      `*Generated: ${new Date().toLocaleString()}*`,
+      "",
+      "## Summary",
+      `- Conversations: ${totalConversations}`,
+      `- Messages Sent: ${totalMessages}`,
+      `- Tokens Generated: ${totalTokens.toLocaleString()}`,
+      `- Words Generated: ${totalWords.toLocaleString()}`,
+      `- Using Cortex since: ${sinceText}`,
+      "",
+    ];
+    if (topModels.length > 0) {
+      lines.push("## Model Usage", "| Model | Responses |", "|-------|-----------|");
+      topModels.forEach(([m, c]) => lines.push(`| \`${m}\` | ${c} |`));
+      lines.push("");
+    }
+    if (topPersonas.length > 0) {
+      lines.push("## Persona Usage", "| Persona | Uses |", "|---------|------|");
+      topPersonas.forEach(([id, c]) => {
+        const p = PERSONAS.find((x) => x.id === id);
+        lines.push(`| ${p ? `${p.emoji} ${p.name}` : id} | ${c} |`);
+      });
+      lines.push("");
+    }
+    try {
+      const path = await save({
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+        defaultPath: `cortex-stats-${new Date().toISOString().slice(0, 10)}.md`,
+      });
+      if (path) {
+        await writeTextFile(path, lines.join("\n"));
+        toast("success", "Stats exported", path);
+      }
+    } catch {
+      toast("error", "Export failed", "Could not save the file");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -556,14 +599,45 @@ function StatsSection() {
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-2 border-t border-cortex-border">
+      <div className="space-y-3 pt-2 border-t border-cortex-border">
         <p className="text-2xs text-cortex-text-dim">Using Cortex since {sinceText}</p>
-        <button
-          onClick={() => { reset(); toast("info", "Stats reset"); }}
-          className="text-2xs text-cortex-text-dim hover:text-cortex-error transition-colors"
-        >
-          Reset stats
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => void handleExport()}
+            disabled={totalMessages === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-cortex-surface-3 border border-cortex-border text-cortex-text-muted hover:text-cortex-text hover:border-cortex-accent/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Download size={12} />
+            Export as Markdown
+          </button>
+
+          {!confirmReset ? (
+            <button
+              onClick={() => setConfirmReset(true)}
+              disabled={totalMessages === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-cortex-surface-3 border border-cortex-border text-cortex-text-muted hover:text-cortex-error hover:border-cortex-error/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <RotateCcw size={12} />
+              Reset stats
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-cortex-text-muted">Are you sure?</span>
+              <button
+                onClick={() => { reset(); setConfirmReset(false); toast("info", "Stats reset to zero"); }}
+                className="px-2.5 py-1.5 rounded-lg text-xs bg-cortex-error/20 text-cortex-error border border-cortex-error/30 hover:bg-cortex-error/30 transition-colors"
+              >
+                Yes, reset
+              </button>
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="px-2.5 py-1.5 rounded-lg text-xs bg-cortex-surface-3 text-cortex-text-muted hover:text-cortex-text transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
