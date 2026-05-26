@@ -1,10 +1,19 @@
-import { Minus, Square, X, BrainCircuit } from "lucide-react";
+import { Minus, Square, X, BrainCircuit, Sun, Moon } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useUIStore } from "@/stores/uiStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { cn } from "@/utils/cn";
 
 export function TitleBar() {
   const { toggleSidebar } = useUIStore();
+  const theme = useSettingsStore((s) => s.settings.appearance.theme);
+  const { updateSettings } = useSettingsStore();
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const isLight = theme === "light" || (theme === "system" && !prefersDark);
+
+  const toggleTheme = () => {
+    updateSettings({ appearance: { theme: isLight ? "dark" : "light" } });
+  };
 
   const minimize = () => getCurrentWindow().minimize().catch(() => null);
   const maximize = () => getCurrentWindow().toggleMaximize().catch(() => null);
@@ -34,8 +43,16 @@ export function TitleBar() {
         <span className="text-xs text-cortex-text-dim pointer-events-none">Privacy-First AI</span>
       </div>
 
-      {/* Right: Window controls — not inside drag region */}
+      {/* Right: Theme toggle + Window controls — not inside drag region */}
       <div className="flex items-center gap-1 px-2">
+        <button
+          onClick={toggleTheme}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-cortex-surface-3 text-cortex-text-muted hover:text-cortex-text transition-colors"
+          title={isLight ? "Switch to dark mode" : "Switch to light mode"}
+        >
+          {isLight ? <Moon size={12} /> : <Sun size={12} />}
+        </button>
+        <div className="w-px h-4 bg-cortex-border mx-0.5" />
         <button
           onClick={minimize}
           className="w-7 h-7 flex items-center justify-center rounded hover:bg-cortex-surface-3 text-cortex-text-muted hover:text-cortex-text transition-colors"

@@ -6,30 +6,25 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Core backgrounds
-        "cortex-bg": "#09090b",
-        "cortex-surface": "#111113",
-        "cortex-surface-2": "#18181b",
-        "cortex-surface-3": "#27272a",
-        // Borders
-        "cortex-border": "#27272a",
-        "cortex-border-subtle": "#1e1e23",
-        // Text
-        "cortex-text": "#fafafa",
-        "cortex-text-muted": "#a1a1aa",
-        "cortex-text-dim": "#52525b",
-        // Accent (indigo-based)
-        "cortex-accent": "#818cf8",
-        "cortex-accent-dim": "#4f46e5",
-        "cortex-accent-glow": "rgba(129, 140, 248, 0.15)",
-        // Status colors
-        "cortex-success": "#4ade80",
-        "cortex-warning": "#fbbf24",
-        "cortex-error": "#f87171",
-        "cortex-info": "#60a5fa",
-        // User message bubble
-        "cortex-user-bg": "#1e1b4b",
-        "cortex-user-border": "#3730a3",
+        // All values reference CSS custom properties so dark/light theme switching works
+        "cortex-bg": "rgb(var(--cortex-bg) / <alpha-value>)",
+        "cortex-surface": "rgb(var(--cortex-surface) / <alpha-value>)",
+        "cortex-surface-2": "rgb(var(--cortex-surface-2) / <alpha-value>)",
+        "cortex-surface-3": "rgb(var(--cortex-surface-3) / <alpha-value>)",
+        "cortex-border": "rgb(var(--cortex-border) / <alpha-value>)",
+        "cortex-border-subtle": "rgb(var(--cortex-border-subtle) / <alpha-value>)",
+        "cortex-text": "rgb(var(--cortex-text) / <alpha-value>)",
+        "cortex-text-muted": "rgb(var(--cortex-text-muted) / <alpha-value>)",
+        "cortex-text-dim": "rgb(var(--cortex-text-dim) / <alpha-value>)",
+        "cortex-accent": "rgb(var(--cortex-accent) / <alpha-value>)",
+        "cortex-accent-dim": "rgb(var(--cortex-accent-dim) / <alpha-value>)",
+        "cortex-accent-glow": "rgb(var(--cortex-accent) / 0.15)",
+        "cortex-success": "rgb(var(--cortex-success) / <alpha-value>)",
+        "cortex-warning": "rgb(var(--cortex-warning) / <alpha-value>)",
+        "cortex-error": "rgb(var(--cortex-error) / <alpha-value>)",
+        "cortex-info": "rgb(var(--cortex-info) / <alpha-value>)",
+        "cortex-user-bg": "rgb(var(--cortex-user-bg) / <alpha-value>)",
+        "cortex-user-border": "rgb(var(--cortex-user-border) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["Inter var", "Inter", "system-ui", "sans-serif"],

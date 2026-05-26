@@ -349,6 +349,24 @@ function AppearanceSettings({ settings, onChange }: {
 }) {
   return (
     <div>
+      <SettingRow label="Theme" description="Color scheme for the app">
+        <div className="flex gap-1">
+          {(["dark", "light", "system"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => onChange({ theme: t })}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs capitalize transition-colors",
+                settings.theme === t
+                  ? "bg-cortex-accent text-white"
+                  : "bg-cortex-surface-3 text-cortex-text-muted hover:text-cortex-text border border-cortex-border",
+              )}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </SettingRow>
       <SettingRow label="Font size" description="UI text size">
         <select
           value={settings.fontSize}

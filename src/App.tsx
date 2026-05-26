@@ -11,6 +11,34 @@ import { SettingsRoute } from "@/app/routes/Settings";
 import { NotificationStack } from "@/components/common/NotificationStack";
 import { CommandPalette } from "@/components/common/CommandPalette";
 import { useModels } from "@/hooks/useModels";
+import { useSettingsStore } from "@/stores/settingsStore";
+
+function ThemeApplier() {
+  const theme = useSettingsStore((s) => s.settings.appearance.theme);
+
+  useEffect(() => {
+    const root = document.documentElement;
+
+    const applyTheme = (prefersDark: boolean) => {
+      if (theme === "light" || (theme === "system" && !prefersDark)) {
+        root.classList.add("light");
+      } else {
+        root.classList.remove("light");
+      }
+    };
+
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    applyTheme(mq.matches);
+
+    if (theme === "system") {
+      const handler = (e: MediaQueryListEvent) => applyTheme(e.matches);
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+  }, [theme]);
+
+  return null;
+}
 
 function AppBootstrap() {
   useModels(); // Kick off model polling at top level
@@ -35,6 +63,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppBootstrap />
+      <ThemeApplier />
       <Routes>
         <Route path="/" element={<AppLayout />}>
           <Route index element={<Navigate to="/chat" replace />} />
