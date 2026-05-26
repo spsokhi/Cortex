@@ -5,7 +5,13 @@ import {
   Code2, Trash2, RefreshCw, CheckCircle2, Clock, AlertCircle,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, readFile } from "@tauri-apps/plugin-fs";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+
+GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
 import { useFileStore } from "@/stores/fileStore";
 import { useUIStore } from "@/stores/uiStore";
 import { cn } from "@/utils/cn";
@@ -87,7 +93,13 @@ export function FilesRoute() {
             if (fileType !== "image" && fileType !== "unknown") {
               useFileStore.getState().updateFile(fileId, { indexStatus: "indexing" });
               try {
-                const text = await readTextFile(filePath);
+                let text: string;
+                if (fileType === "pdf") {
+                  const bytes = await readFile(filePath);
+                  text = await extractPdfText(bytes.buffer as ArrayBuffer);
+                } else {
+                  text = await readTextFile(filePath);
+                }
                 const chunks = chunkText(text, 600, 80);
                 useFileStore.getState().updateFile(fileId, {
                   size: text.length,
@@ -154,26 +166,53 @@ export function FilesRoute() {
 
         if (fileType !== "image" && fileType !== "unknown") {
           useFileStore.getState().updateFile(fileId, { indexStatus: "indexing" });
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            const text = (ev.target?.result as string) ?? "";
-            const chunks = chunkText(text, 600, 80);
-            useFileStore.getState().updateFile(fileId, {
-              size: text.length,
-              indexStatus: "indexed",
-              content: text,
-              chunks,
-              chunkCount: chunks.length,
-              indexedAt: Date.now(),
+          if (fileType === "pdf") {
+            file.arrayBuffer().then(async (buf) => {
+              try {
+                const text = await extractPdfText(buf);
+                const chunks = chunkText(text, 600, 80);
+                useFileStore.getState().updateFile(fileId, {
+                  size: text.length,
+                  indexStatus: "indexed",
+                  content: text,
+                  chunks,
+                  chunkCount: chunks.length,
+                  indexedAt: Date.now(),
+                });
+              } catch {
+                useFileStore.getState().updateFile(fileId, {
+                  indexStatus: "error",
+                  error: "Failed to parse PDF",
+                });
+              }
+            }).catch(() => {
+              useFileStore.getState().updateFile(fileId, {
+                indexStatus: "error",
+                error: "Failed to read PDF",
+              });
             });
-          };
-          reader.onerror = () => {
-            useFileStore.getState().updateFile(fileId, {
-              indexStatus: "error",
-              error: "Failed to read file",
-            });
-          };
-          reader.readAsText(file);
+          } else {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const text = (ev.target?.result as string) ?? "";
+              const chunks = chunkText(text, 600, 80);
+              useFileStore.getState().updateFile(fileId, {
+                size: text.length,
+                indexStatus: "indexed",
+                content: text,
+                chunks,
+                chunkCount: chunks.length,
+                indexedAt: Date.now(),
+              });
+            };
+            reader.onerror = () => {
+              useFileStore.getState().updateFile(fileId, {
+                indexStatus: "error",
+                error: "Failed to read file",
+              });
+            };
+            reader.readAsText(file);
+          }
         } else {
           useFileStore.getState().updateFile(fileId, {
             indexStatus: "skipped",
@@ -297,6 +336,20 @@ export function FilesRoute() {
       </div>
     </motion.div>
   );
+}
+
+async function extractPdfText(data: ArrayBuffer): Promise<string> {
+  const pdf = await getDocument({ data }).promise;
+  const pages: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map((item) => ("str" in item ? item.str : ""))
+      .join(" ");
+    pages.push(pageText);
+  }
+  return pages.join("\n\n");
 }
 
 function chunkText(text: string, chunkSize: number, overlap: number): string[] {

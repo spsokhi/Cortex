@@ -3,7 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "description": "Privacy-first local AI assistant — your data never leaves your device",
-  "keywords": ["ai", "local", "privacy", "ollama", "tauri", "rag", "offline"],
+  "keywords": [
+    "ai",
+    "local",
+    "privacy",
+    "ollama",
+    "tauri",
+    "rag",
+    "offline"
+  ],
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -21,18 +29,19 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.40.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
     "@tauri-apps/plugin-notification": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.0.0",
     "@tauri-apps/plugin-store": "^2.0.0",
-    "@tanstack/react-query": "^5.40.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.3.2",
     "lucide-react": "^0.400.0",
     "nanoid": "^5.0.7",
+    "pdfjs-dist": "^5.7.284",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.2.3",
