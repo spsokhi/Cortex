@@ -12,7 +12,7 @@ interface ChatState {
   streamingMessageId: string | null;
 
   // Actions
-  createConversation: (modelId: string, title?: string) => Conversation;
+  createConversation: (modelId: string, title?: string, systemPrompt?: string) => Conversation;
   setActiveConversation: (id: string, conversation: Conversation) => void;
   loadConversation: (id: string) => Conversation | null;
   updateConversationTitle: (id: string, title: string) => void;
@@ -38,12 +38,13 @@ export const useChatStore = create<ChatState>()(
         isGenerating: false,
         streamingMessageId: null,
 
-        createConversation: (modelId, title) => {
+        createConversation: (modelId, title, systemPrompt) => {
           const now = Date.now();
           const conversation: Conversation = {
             id: nanoid(),
             title: title ?? "New conversation",
             modelId,
+            systemPrompt,
             messages: [],
             tags: [],
             pinned: false,

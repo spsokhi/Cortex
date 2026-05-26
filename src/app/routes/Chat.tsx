@@ -12,6 +12,9 @@ import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
+import { usePersonaStore } from "@/stores/personaStore";
+import { PERSONAS } from "@/data/personas";
+import type { Persona } from "@/data/personas";
 import { cn } from "@/utils/cn";
 
 const SUGGESTIONS = [
@@ -34,6 +37,8 @@ export function ChatRoute() {
   const { settings } = useSettingsStore();
   const { toast } = useUIStore();
   const { sendMessage, stopGeneration, regenerate, isGenerating } = useChat();
+  const activePersonaId = usePersonaStore((s) => s.activePersonaId);
+  const activePersona = PERSONAS.find((p) => p.id === activePersonaId) ?? null;
 
   // Load conversation by ID from persisted store
   useEffect(() => {
@@ -110,6 +115,11 @@ export function ChatRoute() {
           <h2 className="text-sm font-medium text-cortex-text truncate max-w-xs">
             {activeConversation?.title ?? "New conversation"}
           </h2>
+          {activePersona && !activeConversation && (
+            <span className="flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full bg-cortex-accent/10 text-cortex-accent border border-cortex-accent/20 flex-shrink-0">
+              {activePersona.emoji} {activePersona.name}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {activeConversation && messages.length > 0 && (
@@ -133,6 +143,7 @@ export function ChatRoute() {
             onSuggestion={(prompt) => {
               setInputValue(prompt);
             }}
+            activePersona={activePersona}
           />
         ) : (
           <div className="max-w-3xl mx-auto py-4">
@@ -166,23 +177,37 @@ export function ChatRoute() {
   );
 }
 
-function WelcomeScreen({ onSuggestion }: { onSuggestion: (prompt: string) => void }) {
+function WelcomeScreen({
+  onSuggestion,
+  activePersona,
+}: {
+  onSuggestion: (prompt: string) => void;
+  activePersona: Persona | null;
+}) {
   return (
     <div className="flex flex-col items-center justify-center h-full px-6 gap-8">
       {/* Logo mark */}
       <div className="flex flex-col items-center gap-4">
         <div className="relative">
-          <div className="w-16 h-16 rounded-2xl bg-cortex-accent/10 border border-cortex-accent/20 flex items-center justify-center glow-accent">
-            <BrainCircuit size={32} className="text-cortex-accent" />
-          </div>
+          {activePersona ? (
+            <div className="w-16 h-16 rounded-2xl bg-cortex-accent/10 border border-cortex-accent/20 flex items-center justify-center text-4xl glow-accent">
+              {activePersona.emoji}
+            </div>
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-cortex-accent/10 border border-cortex-accent/20 flex items-center justify-center glow-accent">
+              <BrainCircuit size={32} className="text-cortex-accent" />
+            </div>
+          )}
           <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-cortex-success border-2 border-cortex-bg flex items-center justify-center">
             <div className="w-1.5 h-1.5 rounded-full bg-cortex-bg" />
           </div>
         </div>
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-cortex-text tracking-tight">Cortex</h1>
+          <h1 className="text-2xl font-bold text-cortex-text tracking-tight">
+            {activePersona ? activePersona.name : "Cortex"}
+          </h1>
           <p className="text-sm text-cortex-text-muted mt-1">
-            Your private AI assistant — 100% local, zero cloud
+            {activePersona ? activePersona.tagline : "Your private AI assistant — 100% local, zero cloud"}
           </p>
         </div>
       </div>

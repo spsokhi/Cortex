@@ -11,14 +11,18 @@ import {
   Plus,
   Search,
   ChevronRight,
+  ChevronDown,
   Pin,
   MoreHorizontal,
   Cpu,
   Trash2,
+  Bot,
 } from "lucide-react";
 import { useUIStore } from "@/stores/uiStore";
 import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
+import { usePersonaStore } from "@/stores/personaStore";
+import { PERSONAS } from "@/data/personas";
 import { cn } from "@/utils/cn";
 import { truncate, formatRelativeTime } from "@/utils/format";
 
@@ -42,13 +46,18 @@ export function Sidebar() {
   const isExpanded = sidebarState === "expanded";
   const navigate = useNavigate();
   const location = useLocation();
+  const [personasOpen, setPersonasOpen] = useState(true);
 
   const { conversations, activeConversationId, createConversation, deleteConversation } =
     useChatStore();
   const { activeModelId } = useModelStore();
+  const { activePersonaId, setActivePersona } = usePersonaStore();
+  const activePersona = PERSONAS.find((p) => p.id === activePersonaId) ?? null;
 
   const handleNewChat = useCallback(() => {
-    createConversation(activeModelId);
+    const personaId = usePersonaStore.getState().activePersonaId;
+    const persona = PERSONAS.find((p) => p.id === personaId);
+    createConversation(activeModelId, undefined, persona?.systemPrompt);
     navigate("/chat");
   }, [createConversation, activeModelId, navigate]);
 
@@ -146,6 +155,104 @@ export function Sidebar() {
           );
         })}
       </div>
+
+      {/* Persona picker — collapsed: emoji indicator, expanded: full list */}
+      {!isExpanded ? (
+        <div className="flex flex-col items-center py-1.5 border-b border-cortex-border">
+          <button
+            onClick={() => useUIStore.getState().toggleSidebar()}
+            className={cn(
+              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-base",
+              activePersona
+                ? "bg-cortex-accent/10 text-cortex-accent"
+                : "text-cortex-text-dim hover:bg-cortex-surface-3 hover:text-cortex-text-muted",
+            )}
+            title={activePersona ? `Persona: ${activePersona.name}` : "No persona active"}
+          >
+            {activePersona ? activePersona.emoji : <Bot size={15} />}
+          </button>
+        </div>
+      ) : (
+        <div className="border-b border-cortex-border flex-shrink-0">
+          {/* Header row */}
+          <button
+            onClick={() => setPersonasOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-3 py-2 hover:bg-cortex-surface-3 transition-colors"
+          >
+            <div className="flex items-center gap-1.5">
+              <Bot size={11} className="text-cortex-text-dim" />
+              <span className="text-2xs uppercase tracking-wider text-cortex-text-dim font-medium">
+                Persona
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {activePersona && (
+                <span className="text-2xs text-cortex-accent font-medium">
+                  {activePersona.emoji} {activePersona.name}
+                </span>
+              )}
+              <ChevronDown
+                size={10}
+                className={cn(
+                  "text-cortex-text-dim transition-transform duration-200",
+                  personasOpen && "rotate-180",
+                )}
+              />
+            </div>
+          </button>
+
+          {/* Persona list */}
+          <AnimatePresence initial={false}>
+            {personasOpen && (
+              <motion.div
+                initial={{ height: 0 }}
+                animate={{ height: "auto" }}
+                exit={{ height: 0 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="overflow-hidden"
+              >
+                <div className="px-2 pb-2 space-y-0.5 max-h-56 overflow-y-auto no-scrollbar">
+                  {/* None option */}
+                  <button
+                    onClick={() => setActivePersona(null)}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors",
+                      !activePersonaId
+                        ? "bg-cortex-accent/10 text-cortex-accent"
+                        : "text-cortex-text-muted hover:bg-cortex-surface-3 hover:text-cortex-text",
+                    )}
+                  >
+                    <span className="text-sm w-5 text-center">🤖</span>
+                    <div>
+                      <p className="text-xs font-medium leading-tight">No Persona</p>
+                      <p className="text-2xs text-cortex-text-dim leading-tight">Default AI behavior</p>
+                    </div>
+                  </button>
+
+                  {PERSONAS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setActivePersona(p.id)}
+                      className={cn(
+                        "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors",
+                        activePersonaId === p.id
+                          ? "bg-cortex-accent/10 text-cortex-accent"
+                          : "text-cortex-text-muted hover:bg-cortex-surface-3 hover:text-cortex-text",
+                      )}
+                    >
+                      <span className="text-sm w-5 text-center">{p.emoji}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium leading-tight truncate">{p.name}</p>
+                        <p className="text-2xs text-cortex-text-dim leading-tight truncate">{p.tagline}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Conversation history (only when expanded & on chat tab) */}
       {isExpanded && (

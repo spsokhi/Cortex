@@ -4,6 +4,8 @@ import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useFileStore } from "@/stores/fileStore";
+import { usePersonaStore } from "@/stores/personaStore";
+import { PERSONAS } from "@/data/personas";
 import { ollamaClient } from "@/services/api/ollama";
 import type { StreamEvent } from "@/types/chat";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -73,7 +75,9 @@ export function useChat() {
       let conversation = useChatStore.getState().activeConversation;
 
       if (!conversation) {
-        conversation = createConversation(activeModelId);
+        const personaId = usePersonaStore.getState().activePersonaId;
+        const persona = PERSONAS.find((p) => p.id === personaId);
+        conversation = createConversation(activeModelId, undefined, persona?.systemPrompt);
       }
 
       // Add user message

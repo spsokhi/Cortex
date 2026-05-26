@@ -23,10 +23,13 @@
 Cortex is a **privacy-first desktop AI assistant** that runs entirely on your machine. No API keys, no subscriptions, no data leaving your device — ever.
 
 - Chat with any local LLM via [Ollama](https://ollama.ai)
-- Ask questions about your own documents (RAG)
+- Switch between 14 AI personas (Coding Assistant, Interview Coach, Debate Partner, and more)
+- Ask questions about your own documents (RAG) — supports PDF, TXT, Markdown, and code files
 - Write and preview Markdown notes
 - Get coding help with starter prompts
 - Manage and download models from within the app
+- Export conversations as Markdown
+- Light and dark theme
 
 ---
 
@@ -108,20 +111,57 @@ The app window will open. First build takes 2–5 minutes (Rust compiles). Subse
 
 | Tab | What it does |
 |-----|-------------|
-| **Chat** | Talk to your local AI. Conversations are saved and searchable. |
-| **Files** | Upload `.txt`, `.md`, or code files. Enable **RAG** in chat to ask questions about them. |
+| **Chat** | Talk to your local AI. Switch personas, enable RAG, export conversations, regenerate responses. |
+| **Files** | Upload PDF, TXT, Markdown, or code files. Enable **RAG** in chat to ask questions about them. |
 | **Code** | Coding-focused starter prompts that open pre-filled in Chat. |
 | **Models** | Browse, download, and switch between any Ollama model. |
 | **Notes** | Write Markdown notes. Auto-saved locally. Toggle Preview mode. |
-| **Settings** | Adjust appearance, chat behaviour, and privacy options. |
+| **Settings** | Adjust theme, appearance, chat behaviour, and privacy options. |
 
-### Using RAG (document Q&A)
+---
 
-1. Go to **Files** → upload a `.txt` or `.md` file → wait for "Indexed" status
+## AI Personas
+
+Cortex includes 14 built-in personas — each one shapes how the AI thinks, speaks, and responds. Select a persona from the sidebar before starting a new chat.
+
+| Persona | Focus |
+|---------|-------|
+| ⚡ **Coding Assistant** | Clean code, best practices, explains design decisions |
+| 🔍 **Debug Detective** | Systematic root-cause analysis, not just quick fixes |
+| ⚔️ **Debate Partner** | Challenges your assumptions, steelmans opposing views |
+| 🎓 **Study Buddy** | Patient, step-by-step explanations with analogies |
+| 🤔 **Socratic Tutor** | Teaches entirely through questions — never just gives answers |
+| ✍️ **Creative Writer** | Stories, brainstorming, character development, prose editing |
+| 🔬 **Research Analyst** | Rigorous, structured, distinguishes fact from uncertainty |
+| 🚀 **Startup Advisor** | Direct strategy advice — product-market fit, growth, leverage |
+| 🌟 **Life Coach** | Goal clarity, accountability, actionable next steps |
+| 😈 **Devil's Advocate** | Finds every risk and failure mode in your plan |
+| 🌍 **Language Tutor** | Conversational practice, grammar correction, natural phrasing |
+| 🍳 **Chef & Food Guide** | Recipes, cooking techniques, substitutions, pairings |
+| 🧘 **Mindful Listener** | Empathetic, non-judgmental space for reflection |
+| 💼 **Interview Coach** | Mock interviews, STAR framework, honest feedback |
+
+**How to use:**
+1. Open the sidebar (expand if collapsed)
+2. Click any persona in the **Persona** section
+3. Click **New Chat** — the persona's system prompt is automatically injected
+4. Chat as normal — the AI will behave according to the persona
+
+> Switching personas does not affect existing conversations. Set it to **No Persona** to return to default AI behavior.
+
+---
+
+## Using RAG (document Q&A)
+
+1. Go to **Files** → upload a `.pdf`, `.txt`, `.md`, or code file → wait for **Indexed** status
 2. Go to **Chat** → click the **database icon** in the input toolbar to enable RAG
-3. Ask a question — Cortex will search your documents and include relevant context
+3. Ask a question — Cortex searches your documents and includes relevant context in the prompt
 
-### Keyboard shortcuts
+PDF text is extracted automatically. All processing happens locally.
+
+---
+
+## Keyboard shortcuts
 
 | Shortcut | Action |
 |----------|--------|
@@ -141,6 +181,7 @@ The app window will open. First build takes 2–5 minutes (Rust compiles). Subse
 | Animations | Framer Motion |
 | State | Zustand (persisted to localStorage) |
 | LLM runtime | [Ollama](https://ollama.ai) (local HTTP) |
+| PDF parsing | pdfjs-dist (browser-side) |
 | Build | Vite 5, pnpm |
 
 ---
@@ -154,7 +195,8 @@ Cortex/
 │   │   ├── layout/        # AppLayout, Sidebar, TitleBar, StatusBar
 │   │   └── routes/        # Chat, Files, Code, Models, Notes, Settings
 │   ├── components/        # ChatMessage, ChatInput, ModelSelector, ...
-│   ├── stores/            # Zustand stores (chat, files, models, notes, ui)
+│   ├── data/              # personas.ts — built-in AI persona definitions
+│   ├── stores/            # Zustand stores (chat, files, models, notes, ui, persona)
 │   ├── hooks/             # useChat, useModels, useVoice, useSystem
 │   └── types/             # TypeScript types
 ├── src-tauri/             # Rust backend (Tauri commands, Ollama client)
@@ -192,16 +234,19 @@ pnpm tauri:build
 ## Roadmap
 
 - [x] Offline chat with streaming responses
-- [x] Multi-conversation history with search
-- [x] Document Q&A (RAG) — keyword-based retrieval
+- [x] Multi-conversation history
+- [x] Document Q&A (RAG) — PDF, TXT, Markdown, code files
 - [x] Model manager (download / switch models)
 - [x] Markdown notes with preview
 - [x] Code assistant with starter prompts
 - [x] System resource monitor
-- [ ] PDF text extraction
+- [x] AI Personas (14 built-in)
+- [x] Chat export (Markdown)
+- [x] Regenerate response
+- [x] Light / dark theme
 - [ ] Voice input (Whisper)
-- [ ] Conversation export (Markdown / PDF)
 - [ ] Semantic vector search (ChromaDB)
+- [ ] Conversation search
 - [ ] Encrypted local storage
 
 ---
@@ -216,6 +261,6 @@ MIT — see [LICENSE](LICENSE).
 
 Built for privacy advocates, developers, and anyone who wants AI without the cloud.
 
-**If you find this useful, give it a ⭐**
+**Made in India ❤️ by Sukhi — if you find this useful, give it a ⭐**
 
 </div>
