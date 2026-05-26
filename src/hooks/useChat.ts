@@ -54,6 +54,7 @@ export function useChat() {
     activeConversation,
     addMessage,
     updateMessage,
+    removeMessage,
     appendToMessage,
     setGenerating,
     createConversation,
@@ -144,7 +145,7 @@ export function useChat() {
         });
 
         // Auto-title after the first exchange — non-blocking AI call
-        if (conversation.title === "New conversation" && conversation.messages.length <= 1) {
+        if (conversation.title === "New conversation" && conversation.messages.length === 0) {
           const convId = conversation.id;
           void ollamaClient.generateTitle(activeModelId, content).then((aiTitle) => {
             const title = aiTitle || content.slice(0, 50).trim();
@@ -197,6 +198,75 @@ export function useChat() {
     unlistenRef.current?.();
   }, []);
 
+  const regenerate = useCallback(async (ragEnabled = false) => {
+    const conv = useChatStore.getState().activeConversation;
+    if (!conv || useChatStore.getState().isGenerating) return;
+
+    const msgs = conv.messages;
+    const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant");
+    const lastUser = [...msgs].reverse().find((m) => m.role === "user");
+    if (!lastAssistant || !lastUser) return;
+
+    removeMessage(lastAssistant.id);
+
+    const newId = nanoid();
+    useChatStore.setState((state) => {
+      if (!state.activeConversation) return state;
+      return {
+        activeConversation: {
+          ...state.activeConversation,
+          messages: [
+            ...state.activeConversation.messages,
+            {
+              id: newId,
+              conversationId: conv.id,
+              role: "assistant" as const,
+              content: "",
+              status: "streaming" as const,
+              modelId: activeModelId,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            },
+          ],
+        },
+      };
+    });
+
+    setGenerating(true, newId);
+    abortRef.current = new AbortController();
+
+    try {
+      const ragContext = ragEnabled ? retrieveContext(lastUser.content) : "";
+      const systemContent = [conv.systemPrompt, ragContext].filter(Boolean).join("\n\n");
+      const history = msgs
+        .filter((m) => m.id !== lastAssistant.id && m.status === "complete")
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const result = await ollamaClient.chatStream(
+        activeModelId,
+        [
+          ...(systemContent ? [{ role: "system", content: systemContent }] : []),
+          ...history,
+        ],
+        { temperature: modelConfig.temperature, numCtx: modelConfig.numCtx, signal: abortRef.current.signal },
+        (token) => appendToMessage(newId, token),
+      );
+
+      updateMessage(newId, { status: "complete", content: result.content, tokenCount: result.completionTokens });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        updateMessage(newId, { status: "complete" });
+      } else {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        updateMessage(newId, { status: "error", content: `Error: ${msg}` });
+        toast("error", "Regeneration failed", msg);
+      }
+    } finally {
+      setGenerating(false);
+      abortRef.current = null;
+    }
+  }, [activeModelId, modelConfig, removeMessage, appendToMessage, updateMessage, setGenerating, toast]);
+
   const handleStreamEvent = useCallback(
     (event: StreamEvent, messageId: string) => {
       switch (event.type) {
@@ -223,6 +293,7 @@ export function useChat() {
   return {
     sendMessage,
     stopGeneration,
+    regenerate,
     handleStreamEvent,
     isGenerating: useChatStore((s) => s.isGenerating),
   };

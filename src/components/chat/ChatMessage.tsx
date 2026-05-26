@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Copy, Check, Bot, User, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Copy, Check, Bot, User, AlertCircle, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Message } from "@/types/chat";
 import { cn } from "@/utils/cn";
@@ -12,11 +12,15 @@ import { formatAbsoluteTime } from "@/utils/format";
 interface ChatMessageProps {
   message: Message;
   showTimestamp?: boolean;
+  isLast?: boolean;
+  onRegenerate?: () => void;
 }
 
 export const ChatMessage = memo(function ChatMessage({
   message,
   showTimestamp = false,
+  isLast = false,
+  onRegenerate,
 }: ChatMessageProps) {
   const isUser = message.role === "user";
   const isStreaming = message.status === "streaming";
@@ -103,12 +107,24 @@ export const ChatMessage = memo(function ChatMessage({
           <CitationsBlock citations={message.citations} />
         )}
 
-        {/* Token count */}
-        {message.tokenCount && !isStreaming && (
-          <span className="text-2xs text-cortex-text-dim">
-            {message.tokenCount.toLocaleString()} tokens
-          </span>
-        )}
+        {/* Token count + Regenerate */}
+        <div className="flex items-center gap-3">
+          {message.tokenCount && !isStreaming && (
+            <span className="text-2xs text-cortex-text-dim">
+              {message.tokenCount.toLocaleString()} tokens
+            </span>
+          )}
+          {isLast && !isUser && !isStreaming && onRegenerate && (
+            <button
+              onClick={onRegenerate}
+              className="flex items-center gap-1 text-2xs text-cortex-text-dim hover:text-cortex-accent transition-colors opacity-0 group-hover:opacity-100"
+              title="Regenerate response"
+            >
+              <RotateCcw size={11} />
+              Regenerate
+            </button>
+          )}
+        </div>
       </div>
     </motion.div>
   );

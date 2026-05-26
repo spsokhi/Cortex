@@ -20,6 +20,7 @@ interface ChatState {
   pinConversation: (id: string, pinned: boolean) => void;
   addMessage: (conversationId: string, role: MessageRole, content: string) => Message;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
+  removeMessage: (messageId: string) => void;
   appendToMessage: (messageId: string, token: string) => void;
   setGenerating: (generating: boolean, streamingId?: string) => void;
   clearActiveConversation: () => void;
@@ -141,6 +142,13 @@ export const useChatStore = create<ChatState>()(
             return { activeConversation: { ...state.activeConversation, messages } };
           });
         },
+
+        removeMessage: (messageId) =>
+          set((state) => {
+            if (!state.activeConversation) return state;
+            const messages = state.activeConversation.messages.filter((m) => m.id !== messageId);
+            return { activeConversation: { ...state.activeConversation, messages } };
+          }),
 
         appendToMessage: (messageId, token) => {
           set((state) => {

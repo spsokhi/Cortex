@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BrainCircuit, Sparkles, FileText, Code2, Search as SearchIcon } from "lucide-react";
+import { BrainCircuit, Sparkles, FileText, Code2, Search as SearchIcon, Download } from "lucide-react";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ModelSelector } from "@/components/models/ModelSelector";
@@ -9,6 +11,7 @@ import { useChat } from "@/hooks/useChat";
 import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useUIStore } from "@/stores/uiStore";
 import { cn } from "@/utils/cn";
 
 const SUGGESTIONS = [
@@ -29,7 +32,8 @@ export function ChatRoute() {
   const { activeConversation, loadConversation, createConversation, conversations } = useChatStore();
   const { activeModelId } = useModelStore();
   const { settings } = useSettingsStore();
-  const { sendMessage, stopGeneration, isGenerating } = useChat();
+  const { toast } = useUIStore();
+  const { sendMessage, stopGeneration, regenerate, isGenerating } = useChat();
 
   // Load conversation by ID from persisted store
   useEffect(() => {
@@ -56,6 +60,32 @@ export function ChatRoute() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeConversation?.messages]);
 
+  const handleExport = async () => {
+    if (!activeConversation) return;
+    const lines = [
+      `# ${activeConversation.title}`,
+      `*Model: ${activeConversation.modelId} · Exported: ${new Date().toLocaleString()}*`,
+      "",
+    ];
+    for (const msg of activeConversation.messages) {
+      if (msg.status !== "complete") continue;
+      lines.push(`## ${msg.role === "user" ? "You" : "Cortex"}\n\n${msg.content}\n`);
+      lines.push("---\n");
+    }
+    try {
+      const path = await save({
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+        defaultPath: `${activeConversation.title.replace(/[^\w\s-]/g, "")}.md`,
+      });
+      if (path) {
+        await writeTextFile(path, lines.join("\n"));
+        toast("success", "Chat exported", path);
+      }
+    } catch {
+      toast("error", "Export failed", "Could not save the file");
+    }
+  };
+
   const handleSend = async (message: string) => {
     if (!activeConversation) {
       const conv = createConversation(activeModelId);
@@ -81,7 +111,19 @@ export function ChatRoute() {
             {activeConversation?.title ?? "New conversation"}
           </h2>
         </div>
-        <ModelSelector />
+        <div className="flex items-center gap-2">
+          {activeConversation && messages.length > 0 && (
+            <button
+              onClick={() => void handleExport()}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-cortex-text-muted hover:text-cortex-text hover:bg-cortex-surface-3 transition-colors"
+              title="Export chat as Markdown"
+            >
+              <Download size={13} />
+              Export
+            </button>
+          )}
+          <ModelSelector />
+        </div>
       </div>
 
       {/* Messages area */}
@@ -94,11 +136,13 @@ export function ChatRoute() {
           />
         ) : (
           <div className="max-w-3xl mx-auto py-4">
-            {messages.map((message) => (
+            {messages.map((message, i) => (
               <ChatMessage
                 key={message.id}
                 message={message}
                 showTimestamp={settings.appearance.showTimestamps}
+                isLast={i === messages.length - 1}
+                onRegenerate={() => void regenerate(ragEnabled)}
               />
             ))}
             <div ref={messagesEndRef} className="h-4" />
