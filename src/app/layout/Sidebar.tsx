@@ -46,7 +46,7 @@ export function Sidebar() {
   const isExpanded = sidebarState === "expanded";
   const navigate = useNavigate();
   const location = useLocation();
-  const [personasOpen, setPersonasOpen] = useState(true);
+  const [personasOpen, setPersonasOpen] = useState(false);
 
   const { conversations, activeConversationId, createConversation, deleteConversation } =
     useChatStore();

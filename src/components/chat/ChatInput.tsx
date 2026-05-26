@@ -4,6 +4,7 @@ import { Send, Square, Paperclip, Mic, MicOff, Database } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUIStore } from "@/stores/uiStore";
 import { useVoice } from "@/hooks/useVoice";
+import { PromptLibrary } from "@/components/chat/PromptLibrary";
 import { cn } from "@/utils/cn";
 
 interface ChatInputProps {
@@ -34,19 +35,19 @@ export function ChatInput({
   useEffect(() => {
     if (initialValue) setValue(initialValue);
   }, [initialValue]);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useUIStore();
-  const { recordingState, startRecording, stopRecording } = useVoice();
-
+  const { recordingState, interimText, startRecording, stopRecording } = useVoice();
   const isRecording = recordingState === "recording";
-  const isProcessingVoice = recordingState === "processing";
 
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed || isGenerating || disabled) return;
     onSend(trimmed);
     setValue("");
-  }, [value, isGenerating, disabled, onSend]);
+    onInputChange?.("");
+  }, [value, isGenerating, disabled, onSend, onInputChange]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -61,35 +62,41 @@ export function ChatInput({
   const handleVoice = useCallback(async () => {
     if (isRecording) {
       const text = await stopRecording();
-      if (text) setValue((v) => v + (v ? " " : "") + text);
+      if (text) {
+        setValue((v) => {
+          const updated = v ? v.trimEnd() + " " + text : text;
+          onInputChange?.(updated);
+          return updated;
+        });
+      }
     } else {
       await startRecording();
     }
-  }, [isRecording, startRecording, stopRecording]);
+  }, [isRecording, startRecording, stopRecording, onInputChange]);
 
-  // Focus input on mount
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
 
-  // Refocus after message sent
   useEffect(() => {
     if (!isGenerating) textareaRef.current?.focus();
   }, [isGenerating]);
 
   return (
     <div className="relative px-4 pb-4">
-      {/* Recording indicator */}
+      {/* Recording indicator with live interim text */}
       <AnimatePresence>
         {isRecording && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
-            className="absolute -top-8 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 bg-cortex-error/20 border border-cortex-error/40 rounded-full text-xs text-cortex-error"
+            className="absolute -top-10 left-4 right-4 flex items-center gap-2 px-3 py-1.5 bg-cortex-error/20 border border-cortex-error/40 rounded-xl text-xs text-cortex-error"
           >
-            <span className="w-2 h-2 rounded-full bg-cortex-error animate-pulse" />
-            Recording…
+            <span className="w-2 h-2 rounded-full bg-cortex-error animate-pulse flex-shrink-0" />
+            <span className="truncate flex-1">
+              {interimText || "Listening…"}
+            </span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -109,8 +116,8 @@ export function ChatInput({
           value={value}
           onChange={(e) => { setValue(e.target.value); onInputChange?.(e.target.value); }}
           onKeyDown={handleKeyDown}
-          placeholder={isProcessingVoice ? "Processing audio…" : placeholder}
-          disabled={disabled || isProcessingVoice}
+          placeholder={isRecording ? "Recording… click mic to insert" : placeholder}
+          disabled={disabled}
           minRows={1}
           maxRows={12}
           className={cn(
@@ -145,14 +152,22 @@ export function ChatInput({
               activeColor="text-cortex-error"
               onClick={() => void handleVoice()}
             />
+
+            {/* Prompt library */}
+            <PromptLibrary
+              currentInput={value}
+              onInsert={(content) => {
+                setValue(content);
+                onInputChange?.(content);
+                textareaRef.current?.focus();
+              }}
+            />
           </div>
 
           {/* Send / Stop */}
           <div className="flex items-center gap-2">
             {value.trim() && !isGenerating && (
-              <span className="text-2xs text-cortex-text-dim">
-                {value.length}
-              </span>
+              <span className="text-2xs text-cortex-text-dim">{value.length}</span>
             )}
             {isGenerating ? (
               <button

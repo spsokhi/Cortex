@@ -244,7 +244,8 @@ pnpm tauri:build
 - [x] Chat export (Markdown)
 - [x] Regenerate response
 - [x] Light / dark theme
-- [ ] Voice input (Whisper)
+- [x] Prompt library (save & reuse prompts)
+- [x] Voice input (Web Speech API — Chrome/Edge)
 
 ---
 
