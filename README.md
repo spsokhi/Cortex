@@ -245,9 +245,6 @@ pnpm tauri:build
 - [x] Regenerate response
 - [x] Light / dark theme
 - [ ] Voice input (Whisper)
-- [ ] Semantic vector search (ChromaDB)
-- [ ] Conversation search
-- [ ] Encrypted local storage
 
 ---
 
