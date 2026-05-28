@@ -28,7 +28,9 @@ export function ChatRoute() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
   const [ragEnabled, setRagEnabled] = useState(false);
   const [inputValue, setInputValue] = useState("");
 
@@ -60,9 +62,31 @@ export function ChatRoute() {
     }
   }, [location.state]);
 
-  // Auto-scroll on new messages
+  const scrollToBottom = useCallback(() => {
+    if (userScrolledUpRef.current) return;
+    if (rafRef.current !== null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const el = scrollContainerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    userScrolledUpRef.current = el.scrollHeight - el.scrollTop - el.clientHeight > 80;
+  }, []);
+
+  // Force scroll when a new message is added
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    userScrolledUpRef.current = false;
+    scrollToBottom();
+  }, [activeConversation?.messages.length]);
+
+  // Follow streaming content without queuing overlapping animations
+  useEffect(() => {
+    scrollToBottom();
   }, [activeConversation?.messages]);
 
   const handleExport = async () => {
@@ -137,7 +161,11 @@ export function ChatRoute() {
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto scroll-smooth">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto"
+      >
         {isEmpty ? (
           <WelcomeScreen
             onSuggestion={(prompt) => {
@@ -157,7 +185,7 @@ export function ChatRoute() {
                 onQuickAction={(prompt) => void handleSend(prompt)}
               />
             ))}
-            <div ref={messagesEndRef} className="h-4" />
+            <div className="h-4" />
           </div>
         )}
       </div>
