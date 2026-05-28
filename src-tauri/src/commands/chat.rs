@@ -31,6 +31,7 @@ pub async fn delete_conversation(app: AppHandle, id: String) -> Result<(), Strin
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct ChatRequest {
     pub conversation_id: String,
     pub message: String,
@@ -119,7 +120,7 @@ pub async fn cancel_stream(
 
 #[tauri::command]
 pub async fn generate_title(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     conversation_id: String,
 ) -> Result<String, String> {
     // In production, this would call Ollama with the first few messages

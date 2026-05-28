@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
-import { BrainCircuit, Sparkles, FileText, Code2, Search as SearchIcon, Download } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { BrainCircuit, Sparkles, FileText, Code2, Search as SearchIcon, Download, ChevronDown } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -31,6 +31,7 @@ export function ChatRoute() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);
   const rafRef = useRef<number | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [ragEnabled, setRagEnabled] = useState(false);
   const [inputValue, setInputValue] = useState("");
 
@@ -75,7 +76,16 @@ export function ChatRoute() {
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    userScrolledUpRef.current = el.scrollHeight - el.scrollTop - el.clientHeight > 80;
+    const scrolledUp = el.scrollHeight - el.scrollTop - el.clientHeight > 80;
+    userScrolledUpRef.current = scrolledUp;
+    setShowScrollBtn(scrolledUp);
+  }, []);
+
+  const jumpToBottom = useCallback(() => {
+    userScrolledUpRef.current = false;
+    setShowScrollBtn(false);
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, []);
 
   // Force scroll when a new message is added
@@ -161,33 +171,52 @@ export function ChatRoute() {
       </div>
 
       {/* Messages area */}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto"
-      >
-        {isEmpty ? (
-          <WelcomeScreen
-            onSuggestion={(prompt) => {
-              setInputValue(prompt);
-            }}
-            activePersona={activePersona}
-          />
-        ) : (
-          <div className="max-w-3xl mx-auto py-4">
-            {messages.map((message, i) => (
-              <ChatMessage
-                key={message.id}
-                message={message}
-                showTimestamp={settings.appearance.showTimestamps}
-                isLast={i === messages.length - 1}
-                onRegenerate={() => void regenerate(ragEnabled)}
-                onQuickAction={(prompt) => void handleSend(prompt)}
-              />
-            ))}
-            <div className="h-4" />
-          </div>
-        )}
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="absolute inset-0 overflow-y-auto"
+        >
+          {isEmpty ? (
+            <WelcomeScreen
+              onSuggestion={(prompt) => {
+                setInputValue(prompt);
+              }}
+              activePersona={activePersona}
+            />
+          ) : (
+            <div className="max-w-3xl mx-auto py-4">
+              {messages.map((message, i) => (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  showTimestamp={settings.appearance.showTimestamps}
+                  isLast={i === messages.length - 1}
+                  onRegenerate={() => void regenerate(ragEnabled)}
+                  onQuickAction={(prompt) => void handleSend(prompt)}
+                />
+              ))}
+              <div className="h-4" />
+            </div>
+          )}
+        </div>
+
+        {/* Scroll-to-bottom button */}
+        <AnimatePresence>
+          {showScrollBtn && (
+            <motion.button
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.15 }}
+              onClick={jumpToBottom}
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cortex-surface-2 border border-cortex-border shadow-lg text-xs text-cortex-text-muted hover:text-cortex-text hover:border-cortex-accent/40 transition-colors z-10"
+            >
+              <ChevronDown size={13} />
+              Scroll to bottom
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Input */}

@@ -14,6 +14,7 @@ pub async fn list_files(app: AppHandle) -> Result<Vec<IndexedFile>, String> {
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct FileUploadRequest {
     pub path: String,
     pub collection_id: Option<String>,

@@ -17,6 +17,7 @@ import {
   Cpu,
   Trash2,
   Bot,
+  Pencil,
 } from "lucide-react";
 import { useUIStore } from "@/stores/uiStore";
 import { useChatStore } from "@/stores/chatStore";
@@ -404,6 +405,7 @@ interface ConversationItemProps {
 }
 
 function ConversationItem({
+  id,
   title,
   lastMessage,
   updatedAt,
@@ -417,8 +419,25 @@ function ConversationItem({
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(title);
   const menuRef = useRef<HTMLDivElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) setTimeout(() => editInputRef.current?.select(), 0);
+  }, [editing]);
+
+  const commitRename = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== title) {
+      useChatStore.getState().updateConversationTitle(id, trimmed);
+    } else {
+      setEditValue(title);
+    }
+    setEditing(false);
+  };
 
   useEffect(() => {
     if (!menuOpen) { setConfirmDelete(false); setTagInput(""); return; }
@@ -442,12 +461,32 @@ function ConversationItem({
         "group relative flex items-start gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors",
         isActive ? "bg-cortex-accent/10" : "hover:bg-cortex-surface-3",
       )}
-      onClick={onSelect}
+      onClick={editing ? undefined : onSelect}
     >
       <div className="flex-1 min-w-0">
-        <p className={cn("text-xs font-medium truncate", isActive ? "text-cortex-accent" : "text-cortex-text")}>
-          {truncate(title, 30)}
-        </p>
+        {editing ? (
+          <input
+            ref={editInputRef}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") { setEditValue(title); setEditing(false); }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full bg-cortex-surface border border-cortex-accent/50 rounded px-1.5 py-0.5 text-xs text-cortex-text outline-none"
+          />
+        ) : (
+          <p
+            className={cn("text-xs font-medium truncate", isActive ? "text-cortex-accent" : "text-cortex-text")}
+            onDoubleClick={(e) => { e.stopPropagation(); setEditValue(title); setEditing(true); }}
+            title="Double-click to rename"
+          >
+            {truncate(title, 30)}
+          </p>
+        )}
         {lastMessage && (
           <p className="text-2xs text-cortex-text-dim truncate mt-0.5">{truncate(lastMessage, 38)}</p>
         )}
@@ -508,6 +547,15 @@ function ConversationItem({
                 className="w-full bg-cortex-surface-3 border border-cortex-border rounded-lg px-2 py-1 text-2xs text-cortex-text placeholder-cortex-text-dim outline-none focus:border-cortex-accent transition-colors"
               />
             </div>
+
+            {/* Rename */}
+            <button
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setEditValue(title); setEditing(true); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-cortex-text-muted hover:bg-cortex-surface-3 transition-colors border-b border-cortex-border"
+            >
+              <Pencil size={12} />
+              Rename
+            </button>
 
             {/* Delete */}
             {!confirmDelete ? (

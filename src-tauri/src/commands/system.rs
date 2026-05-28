@@ -1,5 +1,4 @@
 use tauri::State;
-use sysinfo::System;
 
 use crate::models::{AppSettings, SystemStats};
 use crate::services::AppState;

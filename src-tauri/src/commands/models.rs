@@ -19,6 +19,7 @@ pub async fn list_models(state: State<'_, AppState>) -> Result<Vec<ModelInfo>, S
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct DownloadModelRequest {
     pub model_name: String,
     pub insecure: Option<bool>,

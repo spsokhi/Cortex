@@ -85,14 +85,18 @@ export const useChatStore = create<ChatState>()(
         },
 
         updateConversationTitle: (id, title) => {
+          const now = Date.now();
           set((state) => ({
             conversations: state.conversations.map((c) =>
-              c.id === id ? { ...c, title, updatedAt: Date.now() } : c,
+              c.id === id ? { ...c, title, updatedAt: now } : c,
             ),
             activeConversation:
               state.activeConversation?.id === id
-                ? { ...state.activeConversation, title, updatedAt: Date.now() }
+                ? { ...state.activeConversation, title, updatedAt: now }
                 : state.activeConversation,
+            savedConversations: state.savedConversations[id]
+              ? { ...state.savedConversations, [id]: { ...state.savedConversations[id], title, updatedAt: now } }
+              : state.savedConversations,
           }));
         },
 
