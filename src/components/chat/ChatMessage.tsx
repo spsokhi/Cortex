@@ -1,9 +1,9 @@
-import { memo, useState } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Copy, Check, Bot, User, AlertCircle, ChevronDown, ChevronUp, RotateCcw, AlignLeft, Lightbulb, ArrowRight, StickyNote } from "lucide-react";
+import { Copy, Check, Bot, User, AlertCircle, ChevronDown, ChevronUp, RotateCcw, AlignLeft, Lightbulb, ArrowRight, StickyNote, Pencil, X } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Message } from "@/types/chat";
 import { useNotesStore } from "@/stores/notesStore";
@@ -17,6 +17,7 @@ interface ChatMessageProps {
   isLast?: boolean;
   onRegenerate?: () => void;
   onQuickAction?: (prompt: string) => void;
+  onEdit?: (messageId: string, newContent: string) => void;
 }
 
 export const ChatMessage = memo(function ChatMessage({
@@ -25,10 +26,37 @@ export const ChatMessage = memo(function ChatMessage({
   isLast = false,
   onRegenerate,
   onQuickAction,
+  onEdit,
 }: ChatMessageProps) {
   const isUser = message.role === "user";
   const isStreaming = message.status === "streaming";
   const isError = message.status === "error";
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(message.content);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setEditValue(message.content);
+      setTimeout(() => {
+        const el = editRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(el.value.length, el.value.length);
+          el.style.height = "auto";
+          el.style.height = `${el.scrollHeight}px`;
+        }
+      }, 0);
+    }
+  }, [editing, message.content]);
+
+  const saveEdit = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== message.content) {
+      onEdit?.(message.id, trimmed);
+    }
+    setEditing(false);
+  };
 
   return (
     <motion.div
@@ -82,7 +110,45 @@ export const ChatMessage = memo(function ChatMessage({
           )}
         >
           {isUser ? (
-            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            editing ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  ref={editRef}
+                  value={editValue}
+                  onChange={(e) => {
+                    setEditValue(e.target.value);
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      saveEdit();
+                    }
+                    if (e.key === "Escape") setEditing(false);
+                  }}
+                  className="w-full bg-cortex-surface-2 border border-cortex-accent/40 rounded-lg px-3 py-2 text-sm text-cortex-text outline-none resize-none min-w-[280px]"
+                />
+                <div className="flex gap-1.5 justify-end">
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-2xs text-cortex-text-muted hover:text-cortex-text hover:bg-cortex-surface-3 transition-colors"
+                  >
+                    <X size={11} />
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEdit}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-2xs bg-cortex-accent text-white hover:bg-cortex-accent/90 transition-colors"
+                  >
+                    <ArrowRight size={11} />
+                    Send
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            )
           ) : (
             <div className={cn("prose-cortex", isStreaming && !message.content && "min-h-[1.5rem]")}>
               {message.content ? (
@@ -96,11 +162,20 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           )}
 
-          {/* Copy button */}
-          {!isStreaming && message.content && (
+          {/* Copy + Edit buttons */}
+          {!isStreaming && message.content && !editing && (
             <div className={cn(
-              "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity",
+              "absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
             )}>
+              {isUser && onEdit && (
+                <button
+                  onClick={() => setEditing(true)}
+                  className="p-1 rounded bg-cortex-surface-3 border border-cortex-border text-cortex-text-dim hover:text-cortex-text transition-colors"
+                  title="Edit and resend"
+                >
+                  <Pencil size={11} />
+                </button>
+              )}
               <CopyButton text={message.content} />
             </div>
           )}

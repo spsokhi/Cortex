@@ -211,6 +211,18 @@ export function useChat() {
     unlistenRef.current?.();
   }, []);
 
+  const editAndResend = useCallback(
+    async (messageId: string, newContent: string, ragEnabled = false) => {
+      const conv = useChatStore.getState().activeConversation;
+      if (!conv || useChatStore.getState().isGenerating) return;
+      if (!newContent.trim()) return;
+
+      useChatStore.getState().truncateMessages(messageId);
+      await sendMessage(newContent, ragEnabled);
+    },
+    [sendMessage],
+  );
+
   const regenerate = useCallback(async (ragEnabled = false) => {
     const conv = useChatStore.getState().activeConversation;
     if (!conv || useChatStore.getState().isGenerating) return;
@@ -307,6 +319,7 @@ export function useChat() {
     sendMessage,
     stopGeneration,
     regenerate,
+    editAndResend,
     handleStreamEvent,
     isGenerating: useChatStore((s) => s.isGenerating),
   };

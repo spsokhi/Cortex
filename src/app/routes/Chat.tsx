@@ -39,7 +39,7 @@ export function ChatRoute() {
   const { activeModelId } = useModelStore();
   const { settings } = useSettingsStore();
   const { toast } = useUIStore();
-  const { sendMessage, stopGeneration, regenerate, isGenerating } = useChat();
+  const { sendMessage, stopGeneration, regenerate, editAndResend, isGenerating } = useChat();
   const activePersonaId = usePersonaStore((s) => s.activePersonaId);
   const activePersona = PERSONAS.find((p) => p.id === activePersonaId) ?? null;
 
@@ -194,6 +194,7 @@ export function ChatRoute() {
                   isLast={i === messages.length - 1}
                   onRegenerate={() => void regenerate(ragEnabled)}
                   onQuickAction={(prompt) => void handleSend(prompt)}
+                  onEdit={(id, newContent) => void editAndResend(id, newContent, ragEnabled)}
                 />
               ))}
               <div className="h-4" />

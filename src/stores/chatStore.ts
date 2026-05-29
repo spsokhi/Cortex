@@ -21,6 +21,7 @@ interface ChatState {
   addMessage: (conversationId: string, role: MessageRole, content: string) => Message;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   removeMessage: (messageId: string) => void;
+  truncateMessages: (messageId: string) => void;
   appendToMessage: (messageId: string, token: string) => void;
   setGenerating: (generating: boolean, streamingId?: string) => void;
   clearActiveConversation: () => void;
@@ -154,6 +155,15 @@ export const useChatStore = create<ChatState>()(
           set((state) => {
             if (!state.activeConversation) return state;
             const messages = state.activeConversation.messages.filter((m) => m.id !== messageId);
+            return { activeConversation: { ...state.activeConversation, messages } };
+          }),
+
+        truncateMessages: (messageId) =>
+          set((state) => {
+            if (!state.activeConversation) return state;
+            const idx = state.activeConversation.messages.findIndex((m) => m.id === messageId);
+            if (idx === -1) return state;
+            const messages = state.activeConversation.messages.slice(0, idx);
             return { activeConversation: { ...state.activeConversation, messages } };
           }),
 
