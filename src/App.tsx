@@ -10,6 +10,7 @@ import { NotesRoute } from "@/app/routes/Notes";
 import { SettingsRoute } from "@/app/routes/Settings";
 import { NotificationStack } from "@/components/common/NotificationStack";
 import { CommandPalette } from "@/components/common/CommandPalette";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { useModels } from "@/hooks/useModels";
 import { useSettingsStore } from "@/stores/settingsStore";
 
@@ -61,24 +62,26 @@ declare global {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppBootstrap />
-      <ThemeApplier />
-      <Routes>
-        <Route path="/" element={<AppLayout />}>
-          <Route index element={<Navigate to="/chat" replace />} />
-          <Route path="chat" element={<ChatRoute />} />
-          <Route path="chat/:id" element={<ChatRoute />} />
-          <Route path="files" element={<FilesRoute />} />
-          <Route path="documents" element={<DocumentsRoute />} />
-          <Route path="code" element={<CodeRoute />} />
-          <Route path="models" element={<ModelsRoute />} />
-          <Route path="notes" element={<NotesRoute />} />
-          <Route path="settings" element={<SettingsRoute />} />
-        </Route>
-      </Routes>
-      <NotificationStack />
-      <CommandPalette />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppBootstrap />
+        <ThemeApplier />
+        <Routes>
+          <Route path="/" element={<AppLayout />}>
+            <Route index element={<Navigate to="/chat" replace />} />
+            <Route path="chat" element={<ChatRoute />} />
+            <Route path="chat/:id" element={<ChatRoute />} />
+            <Route path="files" element={<FilesRoute />} />
+            <Route path="documents" element={<DocumentsRoute />} />
+            <Route path="code" element={<CodeRoute />} />
+            <Route path="models" element={<ModelsRoute />} />
+            <Route path="notes" element={<NotesRoute />} />
+            <Route path="settings" element={<SettingsRoute />} />
+          </Route>
+        </Routes>
+        <NotificationStack />
+        <CommandPalette />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

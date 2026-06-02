@@ -10,6 +10,7 @@ interface ChatState {
   activeConversation: Conversation | null;
   isGenerating: boolean;
   streamingMessageId: string | null;
+  streamingTps: number;
 
   // Actions
   createConversation: (modelId: string, title?: string, systemPrompt?: string) => Conversation;
@@ -24,6 +25,7 @@ interface ChatState {
   truncateMessages: (messageId: string) => void;
   appendToMessage: (messageId: string, token: string) => void;
   setGenerating: (generating: boolean, streamingId?: string) => void;
+  setStreamingTps: (tps: number) => void;
   clearActiveConversation: () => void;
   updateConversationSummary: (conversation: Conversation) => void;
   addTag: (id: string, tag: string) => void;
@@ -40,6 +42,7 @@ export const useChatStore = create<ChatState>()(
         activeConversation: null,
         isGenerating: false,
         streamingMessageId: null,
+        streamingTps: 0,
 
         createConversation: (modelId, title, systemPrompt) => {
           const now = Date.now();
@@ -180,6 +183,8 @@ export const useChatStore = create<ChatState>()(
         setGenerating: (generating, streamingId) => {
           set({ isGenerating: generating, streamingMessageId: streamingId ?? null });
         },
+
+        setStreamingTps: (tps) => set({ streamingTps: tps }),
 
         clearActiveConversation: () => {
           set({ activeConversationId: null, activeConversation: null });

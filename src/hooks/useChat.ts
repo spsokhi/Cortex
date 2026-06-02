@@ -132,6 +132,11 @@ export function useChat() {
           { role: "user", content },
         ];
 
+        let firstTokenAt = 0;
+        let streamedTokens = 0;
+        let lastTpsWrite = 0;
+        const setTps = useChatStore.getState().setStreamingTps;
+
         const result = await ollamaClient.chatStream(
           activeModelId,
           messages,
@@ -140,13 +145,28 @@ export function useChat() {
             numCtx: modelConfig.numCtx,
             signal: abortRef.current.signal,
           },
-          (token) => appendToMessage(assistantMsgId, token),
+          (token) => {
+            if (firstTokenAt === 0) firstTokenAt = performance.now();
+            streamedTokens++;
+            appendToMessage(assistantMsgId, token);
+            const now = performance.now();
+            if (now - lastTpsWrite > 200) {
+              lastTpsWrite = now;
+              const secs = (now - firstTokenAt) / 1000;
+              if (secs > 0) setTps(streamedTokens / secs);
+            }
+          },
         );
+
+        const elapsedSec = firstTokenAt ? (performance.now() - firstTokenAt) / 1000 : 0;
+        const finalTokens = result.completionTokens || streamedTokens;
+        const tps = elapsedSec > 0 ? finalTokens / elapsedSec : 0;
 
         updateMessage(assistantMsgId, {
           status: "complete",
           content: result.content,
           tokenCount: result.completionTokens,
+          tokensPerSec: tps > 0 ? Math.round(tps * 10) / 10 : undefined,
         });
 
         useStatsStore.getState().track({
@@ -188,6 +208,7 @@ export function useChat() {
         }
       } finally {
         setGenerating(false);
+        useChatStore.getState().setStreamingTps(0);
         abortRef.current = null;
       }
     },
@@ -267,6 +288,11 @@ export function useChat() {
         .filter((m) => m.id !== lastAssistant.id && m.status === "complete")
         .map((m) => ({ role: m.role, content: m.content }));
 
+      let firstTokenAt = 0;
+      let streamedTokens = 0;
+      let lastTpsWrite = 0;
+      const setTps = useChatStore.getState().setStreamingTps;
+
       const result = await ollamaClient.chatStream(
         activeModelId,
         [
@@ -274,10 +300,29 @@ export function useChat() {
           ...history,
         ],
         { temperature: modelConfig.temperature, numCtx: modelConfig.numCtx, signal: abortRef.current.signal },
-        (token) => appendToMessage(newId, token),
+        (token) => {
+          if (firstTokenAt === 0) firstTokenAt = performance.now();
+          streamedTokens++;
+          appendToMessage(newId, token);
+          const now = performance.now();
+          if (now - lastTpsWrite > 200) {
+            lastTpsWrite = now;
+            const secs = (now - firstTokenAt) / 1000;
+            if (secs > 0) setTps(streamedTokens / secs);
+          }
+        },
       );
 
-      updateMessage(newId, { status: "complete", content: result.content, tokenCount: result.completionTokens });
+      const elapsedSec = firstTokenAt ? (performance.now() - firstTokenAt) / 1000 : 0;
+      const finalTokens = result.completionTokens || streamedTokens;
+      const tps = elapsedSec > 0 ? finalTokens / elapsedSec : 0;
+
+      updateMessage(newId, {
+        status: "complete",
+        content: result.content,
+        tokenCount: result.completionTokens,
+        tokensPerSec: tps > 0 ? Math.round(tps * 10) / 10 : undefined,
+      });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         updateMessage(newId, { status: "complete" });
@@ -288,6 +333,7 @@ export function useChat() {
       }
     } finally {
       setGenerating(false);
+      useChatStore.getState().setStreamingTps(0);
       abortRef.current = null;
     }
   }, [activeModelId, modelConfig, removeMessage, appendToMessage, updateMessage, setGenerating, toast]);

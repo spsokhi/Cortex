@@ -35,6 +35,7 @@ export function SettingsRoute() {
   };
 
   const handleReset = () => {
+    if (activeSection === "stats") return;
     resetSection(activeSection);
     toast("info", `${SECTIONS.find((s) => s.id === activeSection)?.label} settings reset`);
   };
@@ -95,11 +96,13 @@ export function SettingsRoute() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={handleReset} className="cortex-button-ghost text-xs flex items-center gap-1.5">
-              <RotateCcw size={12} />
-              Reset
-            </button>
-            {isDirty && (
+            {activeSection !== "stats" && (
+              <button onClick={handleReset} className="cortex-button-ghost text-xs flex items-center gap-1.5">
+                <RotateCcw size={12} />
+                Reset
+              </button>
+            )}
+            {isDirty && activeSection !== "stats" && (
               <button onClick={handleSave} className="cortex-button-primary text-xs flex items-center gap-1.5">
                 <Save size={12} />
                 Save changes

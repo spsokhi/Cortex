@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import type { Message } from "@/types/chat";
 import { useNotesStore } from "@/stores/notesStore";
 import { useUIStore } from "@/stores/uiStore";
+import { useChatStore } from "@/stores/chatStore";
 import { cn } from "@/utils/cn";
 import { formatAbsoluteTime } from "@/utils/format";
 
@@ -92,6 +93,7 @@ export const ChatMessage = memo(function ChatMessage({
               {message.modelId}
             </span>
           )}
+          {isStreaming && !isUser && <LiveTps />}
           {showTimestamp && (
             <span className="text-2xs text-cortex-text-dim opacity-0 group-hover:opacity-100 transition-opacity">
               {formatAbsoluteTime(message.createdAt)}
@@ -191,6 +193,11 @@ export const ChatMessage = memo(function ChatMessage({
           {message.tokenCount && !isStreaming && (
             <span className="text-2xs text-cortex-text-dim">
               {message.tokenCount.toLocaleString()} tokens
+            </span>
+          )}
+          {message.tokensPerSec && !isStreaming && (
+            <span className="text-2xs text-cortex-text-dim">
+              {message.tokensPerSec.toFixed(1)} tok/s
             </span>
           )}
           {!isUser && !isStreaming && message.content && (
@@ -382,6 +389,17 @@ function QuickAction({ label, icon, onClick }: { label: string; icon: React.Reac
       {icon}
       <span>{label}</span>
     </button>
+  );
+}
+
+function LiveTps() {
+  const tps = useChatStore((s) => s.streamingTps);
+  if (tps <= 0) return null;
+  return (
+    <span className="flex items-center gap-1 text-2xs font-mono text-cortex-accent" title="Generation speed">
+      <span className="w-1 h-1 rounded-full bg-cortex-accent animate-pulse" />
+      {tps.toFixed(1)} tok/s
+    </span>
   );
 }
 

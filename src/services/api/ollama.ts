@@ -83,36 +83,47 @@ export class OllamaClient {
     let content = "";
     let promptTokens = 0;
     let completionTokens = 0;
+    let buffer = "";
+
+    const processLine = (line: string) => {
+      if (!line.trim()) return;
+      try {
+        const data = JSON.parse(line) as {
+          message?: { content: string };
+          done?: boolean;
+          prompt_eval_count?: number;
+          eval_count?: number;
+        };
+
+        if (data.message?.content) {
+          content += data.message.content;
+          onToken(data.message.content);
+        }
+
+        if (data.done) {
+          promptTokens = data.prompt_eval_count ?? 0;
+          completionTokens = data.eval_count ?? 0;
+        }
+      } catch {
+        // Genuinely malformed line — ignore
+      }
+    };
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const lines = decoder.decode(value, { stream: true }).split("\n");
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const data = JSON.parse(line) as {
-            message?: { content: string };
-            done?: boolean;
-            prompt_eval_count?: number;
-            eval_count?: number;
-          };
-
-          if (data.message?.content) {
-            content += data.message.content;
-            onToken(data.message.content);
-          }
-
-          if (data.done) {
-            promptTokens = data.prompt_eval_count ?? 0;
-            completionTokens = data.eval_count ?? 0;
-          }
-        } catch {
-          // Partial JSON — skip
-        }
-      }
+      // Append to buffer; only complete lines (terminated by \n) are safe to parse.
+      // The trailing fragment stays in the buffer until its rest arrives next read.
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? ""; // keep the last (possibly incomplete) segment
+      for (const line of lines) processLine(line);
     }
+
+    // Flush any remaining buffered content after the stream ends
+    buffer += decoder.decode();
+    if (buffer.trim()) processLine(buffer);
 
     return { content, promptTokens, completionTokens };
   }

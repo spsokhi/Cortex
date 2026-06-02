@@ -25,6 +25,7 @@ export interface Message {
   status: MessageStatus;
   modelId?: string;
   tokenCount?: number;
+  tokensPerSec?: number;
   toolCalls?: ToolCall[];
   citations?: CitationSource[];
   createdAt: number;
