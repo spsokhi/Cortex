@@ -1,7 +1,20 @@
 import { useCallback, useRef, useState } from "react";
 import { useUIStore } from "@/stores/uiStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 type RecordingState = "idle" | "recording";
+
+// Map the short language codes used in Settings to the BCP-47 tags
+// that the Web Speech API expects. "auto" leaves it unset so the
+// browser falls back to its own default locale.
+const SPEECH_LANG: Record<string, string> = {
+  en: "en-US",
+  es: "es-ES",
+  fr: "fr-FR",
+  de: "de-DE",
+  zh: "zh-CN",
+  ja: "ja-JP",
+};
 
 interface SpeechRecognitionResult {
   readonly isFinal: boolean;
@@ -45,7 +58,7 @@ export function useVoice() {
   const finalTextRef = useRef("");
   const { toast } = useUIStore();
 
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(() => {
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!SR) {
       toast("error", "Voice not supported", "Use Chrome or Edge for voice input.");
@@ -56,7 +69,8 @@ export function useVoice() {
     const recognition = new SR();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = "en-US";
+    const langSetting = useSettingsStore.getState().settings.voice.language;
+    recognition.lang = SPEECH_LANG[langSetting] ?? (langSetting === "auto" ? "" : "en-US");
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = "";
@@ -89,7 +103,7 @@ export function useVoice() {
     setRecordingState("recording");
   }, [toast]);
 
-  const stopRecording = useCallback(async (): Promise<string> => {
+  const stopRecording = useCallback((): string => {
     recognitionRef.current?.stop();
     recognitionRef.current = null;
     setRecordingState("idle");
@@ -97,22 +111,10 @@ export function useVoice() {
     return finalTextRef.current.trim();
   }, []);
 
-  const cancelRecording = useCallback(() => {
-    recognitionRef.current?.abort();
-    recognitionRef.current = null;
-    finalTextRef.current = "";
-    setRecordingState("idle");
-    setInterimText("");
-  }, []);
-
   return {
     recordingState,
     interimText,
-    transcript: finalTextRef.current,
     startRecording,
     stopRecording,
-    cancelRecording,
-    isRecording: recordingState === "recording",
-    isProcessing: false,
   };
 }

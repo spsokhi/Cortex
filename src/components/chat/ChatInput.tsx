@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, KeyboardEvent } from "react";
+import { useState, useCallback, useRef, useEffect, type KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { Send, Square, Paperclip, Mic, MicOff, Database } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -59,9 +59,9 @@ export function ChatInput({
     [handleSend],
   );
 
-  const handleVoice = useCallback(async () => {
+  const handleVoice = useCallback(() => {
     if (isRecording) {
-      const text = await stopRecording();
+      const text = stopRecording();
       if (text) {
         setValue((v) => {
           const updated = v ? v.trimEnd() + " " + text : text;
@@ -70,7 +70,7 @@ export function ChatInput({
         });
       }
     } else {
-      await startRecording();
+      startRecording();
     }
   }, [isRecording, startRecording, stopRecording, onInputChange]);
 
@@ -150,7 +150,7 @@ export function ChatInput({
               label={isRecording ? "Stop recording" : "Voice input"}
               active={isRecording}
               activeColor="text-cortex-error"
-              onClick={() => void handleVoice()}
+              onClick={handleVoice}
             />
 
             {/* Prompt library */}
