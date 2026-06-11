@@ -58,7 +58,7 @@ cortex-data/
 *.db-shm
 *.db-wal
 *.db-wal2
-models/
+/models/
 embeddings-cache/
 
 # OS
