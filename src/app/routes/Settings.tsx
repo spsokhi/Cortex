@@ -321,6 +321,19 @@ function VoiceSettings({ settings, onChange }: {
       <SettingRow label="Enable voice" description="Allow voice input via microphone">
         <Toggle checked={settings.enabled} onChange={(v) => onChange({ enabled: v })} />
       </SettingRow>
+      <SettingRow
+        label="Recognition engine"
+        description="Local Whisper keeps audio on your device. Browser uses the Web Speech API, which sends audio to your browser vendor's servers"
+      >
+        <select
+          value={settings.engine ?? "whisper"}
+          onChange={(e) => onChange({ engine: e.target.value as typeof settings.engine })}
+          className="cortex-input text-sm"
+        >
+          <option value="whisper">Local Whisper (private)</option>
+          <option value="browser">Browser (cloud)</option>
+        </select>
+      </SettingRow>
       <SettingRow label="Whisper model" description="Larger models are more accurate but slower">
         <select
           value={settings.whisperModel}

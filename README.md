@@ -93,6 +93,9 @@ ollama pull llama3:8b
 
 # Smallest, great for low-RAM machines (~1.3 GB)
 ollama pull phi3:mini
+
+# For document Q&A (RAG) — embedding model (~274 MB)
+ollama pull nomic-embed-text
 ```
 
 > You can also download models from inside the app under the **Models** tab.
@@ -153,11 +156,30 @@ Cortex includes 14 built-in personas — each one shapes how the AI thinks, spea
 
 ## Using RAG (document Q&A)
 
-1. Go to **Files** → upload a `.pdf`, `.txt`, `.md`, or code file → wait for **Indexed** status
-2. Go to **Chat** → click the **database icon** in the input toolbar to enable RAG
-3. Ask a question — Cortex searches your documents and includes relevant context in the prompt
+1. Pull the embedding model once: `ollama pull nomic-embed-text`
+2. Go to **Files** → upload a `.pdf`, `.txt`, `.md`, or code file → wait for **Indexed** status (files show a **semantic** badge when embeddings are built)
+3. Go to **Chat** → click the **database icon** in the input toolbar to enable RAG
+4. Ask a question — Cortex embeds your query, finds the most relevant passages by semantic similarity, and injects them into the prompt. Each answer lists its **sources** (click to expand)
 
-PDF text is extracted automatically. All processing happens locally.
+Retrieval is semantic (embeddings via Ollama, cosine similarity) with a keyword fallback for files indexed without embeddings — use the **re-index** button on a file card to upgrade older files. PDF text is extracted automatically. All processing happens locally.
+
+---
+
+## Voice input (local Whisper)
+
+Voice input transcribes on your machine via the bundled Whisper microservice — audio never leaves your device.
+
+```bash
+# One-time setup
+pip install -r services/whisper/requirements.txt
+
+# Start the service (keeps running in a terminal)
+pnpm service:whisper
+```
+
+Then click the **mic icon** in the chat input: click to record, click again to stop and transcribe. The Whisper model (default `base`, ~142 MB) downloads automatically on first use; set `WHISPER_MODEL=small` (or `tiny`/`medium`/`large-v3`) before starting the service to change it.
+
+> Prefer not to run the service? Settings → Voice lets you switch to the **Browser (cloud)** engine, which uses the Web Speech API — be aware it sends audio to your browser vendor's servers.
 
 ---
 
@@ -236,6 +258,7 @@ pnpm tauri:build
 - [x] Offline chat with streaming responses
 - [x] Multi-conversation history
 - [x] Document Q&A (RAG) — PDF, TXT, Markdown, code files
+- [x] Semantic retrieval (local embeddings via Ollama) with source citations
 - [x] Model manager (download / switch models)
 - [x] Markdown notes with preview
 - [x] Code assistant with starter prompts
@@ -245,7 +268,7 @@ pnpm tauri:build
 - [x] Regenerate response
 - [x] Light / dark theme
 - [x] Prompt library (save & reuse prompts)
-- [x] Voice input (Web Speech API — Chrome/Edge)
+- [x] Voice input — 100% local transcription via Whisper (browser Web Speech as opt-in fallback)
 - [x] Chat tags & folders (filter conversations by tag)
 - [x] Quick actions on messages (Summarize, Explain simpler, Continue, Save to note)
 - [x] Stats dashboard (messages, tokens, model & persona usage)

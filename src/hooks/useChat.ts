@@ -3,58 +3,19 @@ import { nanoid } from "nanoid";
 import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
 import { useUIStore } from "@/stores/uiStore";
-import { useFileStore } from "@/stores/fileStore";
 import { usePersonaStore } from "@/stores/personaStore";
 import { useStatsStore } from "@/stores/statsStore";
 import { PERSONAS } from "@/data/personas";
 import { ollamaClient } from "@/services/api/ollama";
+import { retrieveRag, EMPTY_RAG } from "@/services/rag";
 import type { StreamEvent } from "@/types/chat";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-
-function scoreChunk(chunk: string, query: string): number {
-  const queryWords = query.toLowerCase().split(/\W+/).filter((w) => w.length > 3);
-  const chunkLower = chunk.toLowerCase();
-  return queryWords.reduce((acc, w) => acc + (chunkLower.split(w).length - 1), 0);
-}
-
-function retrieveContext(query: string, topK = 5): string {
-  const files = useFileStore.getState().files.filter(
-    (f) => f.indexStatus === "indexed" && f.chunks?.length,
-  );
-
-  console.debug("[RAG] indexed files with chunks:", files.map(f => `${f.name}(${f.chunks?.length} chunks)`));
-
-  if (!files.length) {
-    console.debug("[RAG] no indexed files found");
-    return "";
-  }
-
-  const scored: Array<{ chunk: string; score: number; name: string }> = [];
-  for (const file of files) {
-    for (const chunk of file.chunks ?? []) {
-      scored.push({ chunk, score: scoreChunk(chunk, query), name: file.name });
-    }
-  }
-
-  scored.sort((a, b) => b.score - a.score);
-  const top = scored.slice(0, topK);
-
-  console.debug("[RAG] top chunks scores:", top.map(s => s.score));
-
-  return (
-    "Use the following context from uploaded documents to answer the question. " +
-    "Cite specific details from the context.\n\n" +
-    top.map((s) => `[From: ${s.name}]\n${s.chunk}`).join("\n\n---\n\n") +
-    "\n\n---\n\nAnswer based on the context above."
-  );
-}
 
 export function useChat() {
   const abortRef = useRef<AbortController | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
   const {
-    activeConversation,
     addMessage,
     updateMessage,
     removeMessage,
@@ -114,14 +75,18 @@ export function useChat() {
       abortRef.current = new AbortController();
 
       try {
-        const ragContext = ragEnabled ? retrieveContext(content) : "";
+        const rag = ragEnabled ? await retrieveRag(content) : EMPTY_RAG;
         if (ragEnabled) {
-          if (ragContext) toast("info", "RAG active", "Injecting document context into prompt.");
-          else toast("warning", "RAG: no context found", "No indexed files matched your query.");
+          if (rag.context) {
+            toast("info", "RAG active", `Using ${rag.citations.length} passage${rag.citations.length !== 1 ? "s" : ""} from your documents.`);
+            updateMessage(assistantMsgId, { citations: rag.citations });
+          } else {
+            toast("warning", "RAG: no context found", "No indexed files matched your query.");
+          }
         }
         const systemContent = [
           conversation.systemPrompt,
-          ragContext,
+          rag.context,
         ].filter(Boolean).join("\n\n");
 
         const messages = [
@@ -213,7 +178,6 @@ export function useChat() {
       }
     },
     [
-      activeConversation,
       activeModelId,
       modelConfig,
       addMessage,
@@ -282,8 +246,9 @@ export function useChat() {
     abortRef.current = new AbortController();
 
     try {
-      const ragContext = ragEnabled ? retrieveContext(lastUser.content) : "";
-      const systemContent = [conv.systemPrompt, ragContext].filter(Boolean).join("\n\n");
+      const rag = ragEnabled ? await retrieveRag(lastUser.content) : EMPTY_RAG;
+      if (rag.citations.length) updateMessage(newId, { citations: rag.citations });
+      const systemContent = [conv.systemPrompt, rag.context].filter(Boolean).join("\n\n");
       const history = msgs
         .filter((m) => m.id !== lastAssistant.id && m.status === "complete")
         .map((m) => ({ role: m.role, content: m.content }));

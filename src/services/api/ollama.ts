@@ -109,7 +109,7 @@ export class OllamaClient {
       }
     };
 
-    while (true) {
+    for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -126,6 +126,34 @@ export class OllamaClient {
     if (buffer.trim()) processLine(buffer);
 
     return { content, promptTokens, completionTokens };
+  }
+
+  /**
+   * Generate embeddings for a batch of texts via /api/embed.
+   * Batches requests to keep payloads small; throws on API errors
+   * (e.g. 404 when the embedding model isn't pulled).
+   */
+  async embed(model: string, input: string[]): Promise<number[][]> {
+    const BATCH_SIZE = 32;
+    const out: number[][] = [];
+
+    for (let i = 0; i < input.length; i += BATCH_SIZE) {
+      const res = await fetch(`${this.baseUrl}/api/embed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model, input: input.slice(i, i + BATCH_SIZE) }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Ollama embed error ${res.status}: ${text}`);
+      }
+
+      const data = (await res.json()) as { embeddings: number[][] };
+      out.push(...data.embeddings);
+    }
+
+    return out;
   }
 
   async generateTitle(model: string, userMessage: string): Promise<string> {

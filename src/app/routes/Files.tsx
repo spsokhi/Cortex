@@ -13,7 +13,9 @@ GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 import { useFileStore } from "@/stores/fileStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
+import { embedChunks } from "@/services/rag";
 import { cn } from "@/utils/cn";
 import { formatBytes, formatRelativeTime } from "@/utils/format";
 import type { IndexedFile } from "@/types/files";
@@ -54,7 +56,7 @@ export function FilesRoute() {
     let cancelled = false;
 
     getCurrentWindow()
-      .onDragDropEvent(async (event) => {
+      .onDragDropEvent((event) => {
         const payload = event.payload;
 
         if (payload.type === "over") {
@@ -63,69 +65,7 @@ export function FilesRoute() {
           setIsDragOver(false);
         } else if (payload.type === "drop") {
           setIsDragOver(false);
-          const paths = payload.paths;
-          if (!paths.length) return;
-
-          // Read store actions directly — no stale closure risk with [] deps
-          const { addFile } = useFileStore.getState();
-          const { toast } = useUIStore.getState();
-
-          let added = 0;
-          for (const filePath of paths) {
-            const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
-            const fileType = getFileType(fileName);
-            const fileId = nanoid();
-
-            addFile({
-              id: fileId,
-              name: fileName,
-              path: filePath,
-              type: fileType,
-              size: 0,
-              mimeType: "",
-              indexStatus: "pending",
-              tags: [],
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-            });
-            added++;
-
-            if (fileType !== "image" && fileType !== "unknown") {
-              useFileStore.getState().updateFile(fileId, { indexStatus: "indexing" });
-              try {
-                let text: string;
-                if (fileType === "pdf") {
-                  const bytes = await readFile(filePath);
-                  text = await extractPdfText(bytes.buffer as ArrayBuffer);
-                } else {
-                  text = await readTextFile(filePath);
-                }
-                const chunks = chunkText(text, 600, 80);
-                useFileStore.getState().updateFile(fileId, {
-                  size: text.length,
-                  indexStatus: "indexed",
-                  content: text,
-                  chunks,
-                  chunkCount: chunks.length,
-                  indexedAt: Date.now(),
-                });
-              } catch {
-                useFileStore.getState().updateFile(fileId, {
-                  indexStatus: "error",
-                  error: "Permission denied — try the browse button instead",
-                });
-              }
-            } else {
-              useFileStore.getState().updateFile(fileId, {
-                indexStatus: "skipped",
-                error: fileType === "image" ? "Image content not indexed" : undefined,
-              });
-            }
-          }
-
-          if (added > 0) {
-            toast("success", `${added} file${added !== 1 ? "s" : ""} added`);
-          }
+          if (payload.paths.length) void indexDroppedPaths(payload.paths);
         }
       })
       .then((fn) => {
@@ -138,7 +78,7 @@ export function FilesRoute() {
       cancelled = true;
       unlisten?.();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Click-to-browse: plain FileReader on manually selected files
   const handleFileInput = useCallback(
@@ -170,15 +110,7 @@ export function FilesRoute() {
             file.arrayBuffer().then(async (buf) => {
               try {
                 const text = await extractPdfText(buf);
-                const chunks = chunkText(text, 600, 80);
-                useFileStore.getState().updateFile(fileId, {
-                  size: text.length,
-                  indexStatus: "indexed",
-                  content: text,
-                  chunks,
-                  chunkCount: chunks.length,
-                  indexedAt: Date.now(),
-                });
+                await indexFileContent(fileId, text);
               } catch {
                 useFileStore.getState().updateFile(fileId, {
                   indexStatus: "error",
@@ -195,15 +127,7 @@ export function FilesRoute() {
             const reader = new FileReader();
             reader.onload = (ev) => {
               const text = (ev.target?.result as string) ?? "";
-              const chunks = chunkText(text, 600, 80);
-              useFileStore.getState().updateFile(fileId, {
-                size: text.length,
-                indexStatus: "indexed",
-                content: text,
-                chunks,
-                chunkCount: chunks.length,
-                indexedAt: Date.now(),
-              });
+              void indexFileContent(fileId, text);
             };
             reader.onerror = () => {
               useFileStore.getState().updateFile(fileId, {
@@ -224,6 +148,19 @@ export function FilesRoute() {
       toast("success", `${selected.length} file${selected.length !== 1 ? "s" : ""} added`);
     },
     [addFile, toast],
+  );
+
+  // Rebuild chunks + embeddings from stored text (e.g. after pulling the
+  // embedding model, or for files indexed before semantic search existed)
+  const handleReindex = useCallback(
+    (file: IndexedFile) => {
+      if (!file.content) {
+        toast("error", "Can't re-index", "No stored text — remove the file and add it again.");
+        return;
+      }
+      void indexFileContent(file.id, file.content);
+    },
+    [toast],
   );
 
   const displayFiles = filteredFiles().sort((a, b) => {
@@ -320,6 +257,7 @@ export function FilesRoute() {
               key={file.id}
               file={file}
               onDelete={() => removeFile(file.id)}
+              onReindex={() => handleReindex(file)}
             />
           ))}
         </AnimatePresence>
@@ -370,7 +308,108 @@ function chunkText(text: string, chunkSize: number, overlap: number): string[] {
   return chunks.filter((c) => c.split(/\s+/).length >= 8);
 }
 
-function FileCard({ file, onDelete }: { file: IndexedFile; onDelete: () => void }) {
+/**
+ * Chunk extracted text, embed the chunks for semantic retrieval, and mark the
+ * file indexed. Embedding failure is non-fatal — the file stays usable via
+ * keyword fallback in retrieval.
+ */
+async function indexFileContent(fileId: string, text: string) {
+  const { chunkSize, chunkOverlap, embeddingModel } = useSettingsStore.getState().settings.rag;
+  const chunks = chunkText(text, chunkSize, chunkOverlap);
+
+  useFileStore.getState().updateFile(fileId, {
+    size: text.length,
+    indexStatus: "indexing",
+    content: text,
+    chunks,
+    chunkCount: chunks.length,
+  });
+
+  let embeddings: string[] | undefined;
+  if (chunks.length) {
+    try {
+      embeddings = await embedChunks(chunks);
+    } catch {
+      useUIStore.getState().toast(
+        "warning",
+        "Semantic index unavailable",
+        `Couldn't embed with "${embeddingModel}" — this file will use keyword search. Pull the model from the Models tab, then re-index.`,
+      );
+    }
+  }
+
+  useFileStore.getState().updateFile(fileId, {
+    embeddings,
+    embeddingModel: embeddings ? embeddingModel : undefined,
+    indexStatus: "indexed",
+    indexedAt: Date.now(),
+  });
+}
+
+/** Add and index files dropped onto the window (real OS paths from Tauri). */
+async function indexDroppedPaths(paths: string[]) {
+  const { addFile } = useFileStore.getState();
+  const { toast } = useUIStore.getState();
+
+  let added = 0;
+  for (const filePath of paths) {
+    const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+    const fileType = getFileType(fileName);
+    const fileId = nanoid();
+
+    addFile({
+      id: fileId,
+      name: fileName,
+      path: filePath,
+      type: fileType,
+      size: 0,
+      mimeType: "",
+      indexStatus: "pending",
+      tags: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    added++;
+
+    if (fileType !== "image" && fileType !== "unknown") {
+      useFileStore.getState().updateFile(fileId, { indexStatus: "indexing" });
+      try {
+        let text: string;
+        if (fileType === "pdf") {
+          const bytes = await readFile(filePath);
+          text = await extractPdfText(bytes.buffer);
+        } else {
+          text = await readTextFile(filePath);
+        }
+        await indexFileContent(fileId, text);
+      } catch {
+        useFileStore.getState().updateFile(fileId, {
+          indexStatus: "error",
+          error: "Permission denied — try the browse button instead",
+        });
+      }
+    } else {
+      useFileStore.getState().updateFile(fileId, {
+        indexStatus: "skipped",
+        error: fileType === "image" ? "Image content not indexed" : undefined,
+      });
+    }
+  }
+
+  if (added > 0) {
+    toast("success", `${added} file${added !== 1 ? "s" : ""} added`);
+  }
+}
+
+function FileCard({
+  file,
+  onDelete,
+  onReindex,
+}: {
+  file: IndexedFile;
+  onDelete: () => void;
+  onReindex: () => void;
+}) {
   return (
     <motion.div
       layout
@@ -395,6 +434,9 @@ function FileCard({ file, onDelete }: { file: IndexedFile; onDelete: () => void 
           {file.chunkCount && (
             <span className="text-2xs text-cortex-text-dim">{file.chunkCount} chunks</span>
           )}
+          {file.embeddings && file.embeddings.length > 0 && (
+            <span className="text-2xs text-cortex-success">semantic</span>
+          )}
           <span className="text-2xs text-cortex-text-dim">
             {formatRelativeTime(file.updatedAt)}
           </span>
@@ -406,6 +448,15 @@ function FileCard({ file, onDelete }: { file: IndexedFile; onDelete: () => void 
 
       {/* Actions */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {file.content && file.indexStatus !== "indexing" && (
+          <button
+            onClick={onReindex}
+            className="p-1.5 rounded-lg text-cortex-text-dim hover:text-cortex-accent hover:bg-cortex-accent/10 transition-colors"
+            title="Re-index (rebuild chunks & embeddings)"
+          >
+            <RefreshCw size={13} />
+          </button>
+        )}
         <button
           onClick={onDelete}
           className="p-1.5 rounded-lg text-cortex-text-dim hover:text-cortex-error hover:bg-cortex-error/10 transition-colors"

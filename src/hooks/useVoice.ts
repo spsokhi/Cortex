@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useUIStore } from "@/stores/uiStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { isWhisperRunning, transcribeAudio } from "@/services/api/whisper";
 
-type RecordingState = "idle" | "recording";
+type RecordingState = "idle" | "recording" | "transcribing";
 
 // Map the short language codes used in Settings to the BCP-47 tags
 // that the Web Speech API expects. "auto" leaves it unset so the
@@ -51,17 +52,39 @@ declare global {
   }
 }
 
+/**
+ * Voice input. Default engine records locally with MediaRecorder and
+ * transcribes via the local Whisper service — audio never leaves the device.
+ * The "browser" engine (Web Speech API, cloud-based) is an explicit opt-in
+ * in Settings → Voice.
+ */
 export function useVoice() {
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
   const [interimText, setInterimText] = useState("");
+
+  // Whisper engine
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  // Browser engine
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const finalTextRef = useRef("");
+
   const { toast } = useUIStore();
 
-  const startRecording = useCallback(() => {
+  const releaseStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    mediaRecorderRef.current = null;
+  }, []);
+
+  useEffect(() => releaseStream, [releaseStream]);
+
+  const startBrowserRecording = useCallback(() => {
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!SR) {
-      toast("error", "Voice not supported", "Use Chrome or Edge for voice input.");
+      toast("error", "Voice not supported", "Web Speech is unavailable — switch to Local Whisper in Settings → Voice.");
       return;
     }
 
@@ -103,13 +126,82 @@ export function useVoice() {
     setRecordingState("recording");
   }, [toast]);
 
-  const stopRecording = useCallback((): string => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    setRecordingState("idle");
-    setInterimText("");
-    return finalTextRef.current.trim();
-  }, []);
+  const startWhisperRecording = useCallback(async () => {
+    if (!(await isWhisperRunning())) {
+      toast(
+        "error",
+        "Whisper service not running",
+        "Start it with `pnpm service:whisper` (see README), or switch the engine in Settings → Voice.",
+      );
+      return;
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      toast("error", "Microphone unavailable", "Check microphone permissions for Cortex.");
+      return;
+    }
+
+    chunksRef.current = [];
+    const recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+    recorder.start();
+
+    streamRef.current = stream;
+    mediaRecorderRef.current = recorder;
+    setRecordingState("recording");
+  }, [toast]);
+
+  const startRecording = useCallback(async () => {
+    const engine = useSettingsStore.getState().settings.voice.engine ?? "whisper";
+    if (engine === "browser") startBrowserRecording();
+    else await startWhisperRecording();
+  }, [startBrowserRecording, startWhisperRecording]);
+
+  const stopRecording = useCallback(async (): Promise<string> => {
+    // Browser engine: transcript was accumulated live
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+      setRecordingState("idle");
+      setInterimText("");
+      return finalTextRef.current.trim();
+    }
+
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      setRecordingState("idle");
+      return "";
+    }
+
+    const audio = await new Promise<Blob>((resolve) => {
+      recorder.onstop = () =>
+        resolve(new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }));
+      recorder.stop();
+    });
+    releaseStream();
+
+    if (audio.size === 0) {
+      setRecordingState("idle");
+      return "";
+    }
+
+    setRecordingState("transcribing");
+    try {
+      const language = useSettingsStore.getState().settings.voice.language;
+      return await transcribeAudio(audio, language);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast("error", "Transcription failed", msg);
+      return "";
+    } finally {
+      setRecordingState("idle");
+    }
+  }, [releaseStream, toast]);
 
   return {
     recordingState,

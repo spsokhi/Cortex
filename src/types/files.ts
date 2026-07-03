@@ -26,6 +26,8 @@ export interface IndexedFile {
   indexedAt?: number;
   content?: string;   // raw extracted text
   chunks?: string[];  // text chunks for RAG retrieval
+  embeddings?: string[]; // base64 int8-quantized unit vectors, parallel to chunks
+  embeddingModel?: string; // model that produced the embeddings — must match settings to be usable
 }
 
 export interface FileChunk {

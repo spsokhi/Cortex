@@ -60,6 +60,8 @@ export interface RagSettings {
 
 export interface VoiceSettings {
   enabled: boolean;
+  /** "whisper" = local Whisper service (private); "browser" = Web Speech API (sends audio to the browser vendor's cloud) */
+  engine: "whisper" | "browser";
   whisperModel: "tiny" | "base" | "small" | "medium" | "large";
   language: string;
   wakeWord?: string;
@@ -124,6 +126,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   voice: {
     enabled: false,
+    engine: "whisper",
     whisperModel: "base",
     language: "en",
     wakeWordEnabled: false,

@@ -60,19 +60,20 @@ export function ChatInput({
   );
 
   const handleVoice = useCallback(() => {
-    if (isRecording) {
-      const text = stopRecording();
-      if (text) {
+    if (recordingState === "transcribing") return;
+    if (recordingState === "recording") {
+      void stopRecording().then((text) => {
+        if (!text) return;
         setValue((v) => {
           const updated = v ? v.trimEnd() + " " + text : text;
           onInputChange?.(updated);
           return updated;
         });
-      }
+      });
     } else {
-      startRecording();
+      void startRecording();
     }
-  }, [isRecording, startRecording, stopRecording, onInputChange]);
+  }, [recordingState, startRecording, stopRecording, onInputChange]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -84,9 +85,9 @@ export function ChatInput({
 
   return (
     <div className="relative px-4 pb-4">
-      {/* Recording indicator with live interim text */}
+      {/* Recording / transcribing indicator */}
       <AnimatePresence>
-        {isRecording && (
+        {recordingState !== "idle" && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -95,7 +96,9 @@ export function ChatInput({
           >
             <span className="w-2 h-2 rounded-full bg-cortex-error animate-pulse flex-shrink-0" />
             <span className="truncate flex-1">
-              {interimText || "Listening…"}
+              {recordingState === "transcribing"
+                ? "Transcribing locally…"
+                : interimText || "Listening… click the mic to finish"}
             </span>
           </motion.div>
         )}
@@ -147,8 +150,14 @@ export function ChatInput({
             {/* Voice */}
             <ToolbarButton
               icon={isRecording ? <MicOff size={14} /> : <Mic size={14} />}
-              label={isRecording ? "Stop recording" : "Voice input"}
-              active={isRecording}
+              label={
+                recordingState === "transcribing"
+                  ? "Transcribing…"
+                  : isRecording
+                    ? "Stop recording"
+                    : "Voice input"
+              }
+              active={recordingState !== "idle"}
               activeColor="text-cortex-error"
               onClick={handleVoice}
             />
