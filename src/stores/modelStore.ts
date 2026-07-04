@@ -1,12 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { ModelInfo, ModelConfig, ModelDownloadProgress } from "@/types/models";
-import { DEFAULT_MODEL_CONFIG } from "@/types/models";
+import type { ModelInfo, ModelDownloadProgress } from "@/types/models";
 
 interface ModelState {
   models: ModelInfo[];
   activeModelId: string;
-  modelConfig: ModelConfig;
   downloadQueue: ModelDownloadProgress[];
   ollamaConnected: boolean;
   isLoading: boolean;
@@ -14,7 +12,6 @@ interface ModelState {
   // Actions
   setModels: (models: ModelInfo[]) => void;
   setActiveModel: (modelId: string) => void;
-  updateModelConfig: (config: Partial<ModelConfig>) => void;
   addToDownloadQueue: (progress: ModelDownloadProgress) => void;
   updateDownloadProgress: (modelName: string, progress: Partial<ModelDownloadProgress>) => void;
   removeFromDownloadQueue: (modelName: string) => void;
@@ -28,7 +25,6 @@ export const useModelStore = create<ModelState>()(
     (set) => ({
       models: [],
       activeModelId: "llama3:8b",
-      modelConfig: DEFAULT_MODEL_CONFIG,
       downloadQueue: [],
       ollamaConnected: false,
       isLoading: false,
@@ -36,9 +32,6 @@ export const useModelStore = create<ModelState>()(
       setModels: (models) => set({ models }),
 
       setActiveModel: (modelId) => set({ activeModelId: modelId }),
-
-      updateModelConfig: (config) =>
-        set((state) => ({ modelConfig: { ...state.modelConfig, ...config } })),
 
       addToDownloadQueue: (progress) =>
         set((state) => ({
@@ -72,7 +65,6 @@ export const useModelStore = create<ModelState>()(
       name: "cortex-model-store",
       partialize: (state) => ({
         activeModelId: state.activeModelId,
-        modelConfig: state.modelConfig,
       }),
     },
   ),

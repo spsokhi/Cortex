@@ -4,6 +4,21 @@
  */
 import type { OllamaListResponse } from "@/types/models";
 
+export interface OllamaChatMessage {
+  role: string;
+  content: string;
+  /** Echoed back to the model between tool rounds */
+  tool_calls?: unknown[];
+  tool_name?: string;
+}
+
+export interface OllamaToolCall {
+  function: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+}
+
 export class OllamaClient {
   private baseUrl: string;
 
@@ -48,14 +63,25 @@ export class OllamaClient {
    */
   async chatStream(
     model: string,
-    messages: Array<{ role: string; content: string }>,
+    messages: OllamaChatMessage[],
     options: {
       temperature?: number;
       numCtx?: number;
+      topP?: number;
+      seed?: number;
+      /** Duration string ("10m") or -1 to keep the model loaded indefinitely */
+      keepAlive?: string | number;
+      /** Tool definitions (OpenAI function format) the model may call */
+      tools?: unknown[];
       signal?: AbortSignal;
     },
     onToken: (token: string) => void,
-  ): Promise<{ content: string; promptTokens: number; completionTokens: number }> {
+  ): Promise<{
+    content: string;
+    promptTokens: number;
+    completionTokens: number;
+    toolCalls: OllamaToolCall[];
+  }> {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -64,9 +90,13 @@ export class OllamaClient {
         model,
         messages,
         stream: true,
+        ...(options.keepAlive != null ? { keep_alive: options.keepAlive } : {}),
+        ...(options.tools?.length ? { tools: options.tools } : {}),
         options: {
           temperature: options.temperature ?? 0.7,
           num_ctx: options.numCtx ?? 4096,
+          ...(options.topP != null ? { top_p: options.topP } : {}),
+          ...(options.seed ? { seed: options.seed } : {}),
         },
       }),
     });
@@ -84,12 +114,13 @@ export class OllamaClient {
     let promptTokens = 0;
     let completionTokens = 0;
     let buffer = "";
+    const toolCalls: OllamaToolCall[] = [];
 
     const processLine = (line: string) => {
       if (!line.trim()) return;
       try {
         const data = JSON.parse(line) as {
-          message?: { content: string };
+          message?: { content: string; tool_calls?: OllamaToolCall[] };
           done?: boolean;
           prompt_eval_count?: number;
           eval_count?: number;
@@ -98,6 +129,10 @@ export class OllamaClient {
         if (data.message?.content) {
           content += data.message.content;
           onToken(data.message.content);
+        }
+
+        if (data.message?.tool_calls?.length) {
+          toolCalls.push(...data.message.tool_calls);
         }
 
         if (data.done) {
@@ -125,7 +160,7 @@ export class OllamaClient {
     buffer += decoder.decode();
     if (buffer.trim()) processLine(buffer);
 
-    return { content, promptTokens, completionTokens };
+    return { content, promptTokens, completionTokens, toolCalls };
   }
 
   /**
@@ -156,7 +191,11 @@ export class OllamaClient {
     return out;
   }
 
-  async generateTitle(model: string, userMessage: string): Promise<string> {
+  async generateTitle(
+    model: string,
+    userMessage: string,
+    keepAlive?: string | number,
+  ): Promise<string> {
     try {
       const res = await fetch(`${this.baseUrl}/api/generate`, {
         method: "POST",
@@ -166,6 +205,7 @@ export class OllamaClient {
           model,
           prompt: `Summarize the following message as a short chat title. Reply with only 3-6 words, no punctuation, no quotes, no explanation:\n\n${userMessage.slice(0, 400)}`,
           stream: false,
+          ...(keepAlive != null ? { keep_alive: keepAlive } : {}),
           options: { temperature: 0.3, num_predict: 15 },
         }),
       });

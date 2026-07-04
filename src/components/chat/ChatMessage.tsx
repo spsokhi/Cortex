@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Copy, Check, Bot, User, AlertCircle, ChevronDown, ChevronUp, RotateCcw, AlignLeft, Lightbulb, ArrowRight, StickyNote, Pencil, X } from "lucide-react";
+import { Copy, Check, Bot, User, AlertCircle, ChevronDown, ChevronUp, RotateCcw, AlignLeft, Lightbulb, ArrowRight, StickyNote, Pencil, X, Wrench } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Message } from "@/types/chat";
 import { useNotesStore } from "@/stores/notesStore";
@@ -182,6 +182,11 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           )}
         </div>
+
+        {/* Tool calls */}
+        {message.toolCalls && message.toolCalls.length > 0 && (
+          <ToolCallsBlock toolCalls={message.toolCalls} />
+        )}
 
         {/* Citations */}
         {message.citations && message.citations.length > 0 && (
@@ -400,6 +405,42 @@ function LiveTps() {
       <span className="w-1 h-1 rounded-full bg-cortex-accent animate-pulse" />
       {tps.toFixed(1)} tok/s
     </span>
+  );
+}
+
+function ToolCallsBlock({ toolCalls }: { toolCalls: NonNullable<Message["toolCalls"]> }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-1.5 text-2xs text-cortex-text-dim hover:text-cortex-text transition-colors"
+      >
+        {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+        <Wrench size={10} />
+        {toolCalls.length} tool call{toolCalls.length !== 1 ? "s" : ""}
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-1.5">
+          {toolCalls.map((call) => (
+            <div
+              key={call.id}
+              className="p-2 rounded-lg bg-cortex-surface-3 border border-cortex-border"
+            >
+              <p className="text-2xs font-mono text-cortex-accent break-all">
+                {call.name}({Object.keys(call.input).length ? JSON.stringify(call.input) : ""})
+              </p>
+              {call.output && (
+                <p className="text-2xs text-cortex-text-muted mt-1 line-clamp-3 whitespace-pre-wrap">
+                  {call.output}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

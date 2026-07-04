@@ -114,7 +114,7 @@ The app window will open. First build takes 2–5 minutes (Rust compiles). Subse
 
 | Tab | What it does |
 |-----|-------------|
-| **Chat** | Talk to your local AI. Switch personas, enable RAG, export conversations, regenerate responses. |
+| **Chat** | Talk to your local AI. Switch personas, enable RAG or Tools, export conversations, regenerate responses. |
 | **Files** | Upload PDF, TXT, Markdown, or code files. Enable **RAG** in chat to ask questions about them. |
 | **Code** | Coding-focused starter prompts that open pre-filled in Chat. |
 | **Models** | Browse, download, and switch between any Ollama model. |
@@ -149,6 +149,8 @@ Cortex includes 14 built-in personas — each one shapes how the AI thinks, spea
 2. Click any persona in the **Persona** section
 3. Click **New Chat** — the persona's system prompt is automatically injected
 4. Chat as normal — the AI will behave according to the persona
+
+**Custom personas:** click **New persona** at the bottom of the persona list to create your own — set an emoji, name, tagline, and system prompt. Custom personas appear under a "Custom" heading and can be edited or deleted from the list (hover to reveal the buttons).
 
 > Switching personas does not affect existing conversations. Set it to **No Persona** to return to default AI behavior.
 
@@ -189,7 +191,7 @@ Then click the **mic icon** in the chat input: click to record, click again to s
 |----------|--------|
 | `Enter` | Send message |
 | `Shift+Enter` | New line in message |
-| `Ctrl+K` | Open command palette |
+| `Ctrl+K` | Command palette — search commands, chats, notes & files |
 | `Ctrl+N` | New conversation |
 
 ---
@@ -259,11 +261,17 @@ pnpm tauri:build
 - [x] Multi-conversation history
 - [x] Document Q&A (RAG) — PDF, TXT, Markdown, code files
 - [x] Semantic retrieval (local embeddings via Ollama) with source citations
+- [x] Context-window management — long chats trim oldest messages instead of silently losing the persona/system prompt
+- [x] Generation controls — temperature, context length, top-p, seed, keep-alive (Settings → Models)
 - [x] Model manager (download / switch models)
 - [x] Markdown notes with preview
 - [x] Code assistant with starter prompts
 - [x] System resource monitor
 - [x] AI Personas (14 built-in)
+- [x] Custom personas — create, edit, and delete your own from the sidebar
+- [x] Global search — `Ctrl+K` searches conversations, notes, and files with keyboard navigation
+- [x] Working privacy controls — session-only history, auto-delete old chats (opt-in, pinned chats kept), clear-all button
+- [x] Tool calling — the AI can search your documents, list/read your notes, and check the time (wrench icon in chat; needs a tools-capable model)
 - [x] Chat export (Markdown)
 - [x] Regenerate response
 - [x] Light / dark theme

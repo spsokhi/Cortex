@@ -19,11 +19,13 @@ import {
   Bot,
   Pencil,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { useUIStore } from "@/stores/uiStore";
 import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
-import { usePersonaStore } from "@/stores/personaStore";
-import { PERSONAS } from "@/data/personas";
+import { usePersonaStore, findPersona } from "@/stores/personaStore";
+import { PERSONAS, type Persona } from "@/data/personas";
+import { PersonaEditor } from "@/components/personas/PersonaEditor";
 import { cn } from "@/utils/cn";
 import { truncate, formatRelativeTime } from "@/utils/format";
 
@@ -52,15 +54,17 @@ export function Sidebar() {
   const { conversations, activeConversationId, createConversation, deleteConversation, addTag, removeTag } =
     useChatStore();
   const { activeModelId } = useModelStore();
-  const { activePersonaId, setActivePersona } = usePersonaStore();
-  const activePersona = PERSONAS.find((p) => p.id === activePersonaId) ?? null;
+  const { activePersonaId, setActivePersona, customPersonas, deletePersona } = usePersonaStore();
+  const activePersona = findPersona(activePersonaId);
   const [filterTag, setFilterTag] = useState<string | null>(null);
+  // undefined = editor closed, null = creating, Persona = editing
+  const [editorPersona, setEditorPersona] = useState<Persona | null | undefined>(undefined);
 
   const allTags = [...new Set(conversations.flatMap((c) => c.tags))].sort();
 
   const handleNewChat = useCallback(() => {
     const personaId = usePersonaStore.getState().activePersonaId;
-    const persona = PERSONAS.find((p) => p.id === personaId);
+    const persona = findPersona(personaId);
     createConversation(activeModelId, undefined, persona?.systemPrompt);
     navigate("/chat");
   }, [createConversation, activeModelId, navigate]);
@@ -252,6 +256,65 @@ export function Sidebar() {
                       </div>
                     </button>
                   ))}
+
+                  {/* Custom personas */}
+                  {customPersonas.length > 0 && (
+                    <p className="px-2 pt-1.5 pb-0.5 text-2xs uppercase tracking-wider text-cortex-text-dim">
+                      Custom
+                    </p>
+                  )}
+                  {customPersonas.map((p) => (
+                    <div
+                      key={p.id}
+                      className={cn(
+                        "group flex items-center rounded-lg transition-colors",
+                        activePersonaId === p.id
+                          ? "bg-cortex-accent/10"
+                          : "hover:bg-cortex-surface-3",
+                      )}
+                    >
+                      <button
+                        onClick={() => setActivePersona(p.id)}
+                        className={cn(
+                          "flex-1 min-w-0 flex items-center gap-2.5 px-2 py-1.5 text-left transition-colors",
+                          activePersonaId === p.id
+                            ? "text-cortex-accent"
+                            : "text-cortex-text-muted hover:text-cortex-text",
+                        )}
+                      >
+                        <span className="text-sm w-5 text-center">{p.emoji}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium leading-tight truncate">{p.name}</p>
+                          <p className="text-2xs text-cortex-text-dim leading-tight truncate">{p.tagline}</p>
+                        </div>
+                      </button>
+                      <div className="flex items-center gap-0.5 pr-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => setEditorPersona(p)}
+                          title="Edit persona"
+                          className="p-1 rounded text-cortex-text-dim hover:text-cortex-text transition-colors"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                        <button
+                          onClick={() => deletePersona(p.id)}
+                          title="Delete persona"
+                          className="p-1 rounded text-cortex-text-dim hover:text-cortex-error transition-colors"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Create */}
+                  <button
+                    onClick={() => setEditorPersona(null)}
+                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left text-cortex-text-dim hover:bg-cortex-surface-3 hover:text-cortex-text transition-colors"
+                  >
+                    <span className="w-5 flex justify-center"><Plus size={13} /></span>
+                    <p className="text-xs font-medium leading-tight">New persona</p>
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -372,6 +435,13 @@ export function Sidebar() {
           {isExpanded && <span className="text-sm">Settings</span>}
         </button>
       </div>
+
+      {/* Persona editor — portaled to body so the sidebar's width transform can't trap the overlay */}
+      {editorPersona !== undefined &&
+        createPortal(
+          <PersonaEditor persona={editorPersona} onClose={() => setEditorPersona(undefined)} />,
+          document.body,
+        )}
     </motion.aside>
   );
 }

@@ -27,17 +27,6 @@ export interface ModelInfo {
   digest?: string;
 }
 
-export interface ModelConfig {
-  temperature: number;
-  topP: number;
-  topK: number;
-  repeatPenalty: number;
-  seed?: number;
-  numCtx: number;
-  numPredict: number;
-  stop?: string[];
-}
-
 export interface ModelDownloadRequest {
   modelName: string;
   insecure?: boolean;
@@ -68,12 +57,3 @@ export interface OllamaModelDetail {
 export interface OllamaListResponse {
   models: OllamaModelDetail[];
 }
-
-export const DEFAULT_MODEL_CONFIG: ModelConfig = {
-  temperature: 0.7,
-  topP: 0.9,
-  topK: 40,
-  repeatPenalty: 1.1,
-  numCtx: 4096,
-  numPredict: -1,
-};

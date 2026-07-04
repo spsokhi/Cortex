@@ -45,6 +45,11 @@ export interface ModelSettings {
   maxConcurrentRequests: number;
   defaultTemperature: number;
   defaultContextLength: number;
+  topP: number;
+  /** 0 = random seed */
+  seed: number;
+  /** Ollama keep_alive duration, e.g. "10m"; "always" keeps the model loaded indefinitely */
+  keepAlive: string;
 }
 
 export interface RagSettings {
@@ -72,10 +77,10 @@ export interface VoiceSettings {
 }
 
 export interface PrivacySettings {
-  telemetryEnabled: boolean;
-  crashReportingEnabled: boolean;
-  encryptStorage: boolean;
+  /** Wipe all chat history when Cortex starts a new session */
   clearHistoryOnExit: boolean;
+  /** Master switch for retention pruning — off by default so upgrades never silently delete chats */
+  retentionEnabled: boolean;
   historyRetentionDays: number;
 }
 
@@ -113,6 +118,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     maxConcurrentRequests: 1,
     defaultTemperature: 0.7,
     defaultContextLength: 4096,
+    topP: 0.9,
+    seed: 0,
+    keepAlive: "10m",
   },
   rag: {
     enabled: true,
@@ -133,10 +141,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     ttsEnabled: false,
   },
   privacy: {
-    telemetryEnabled: false,
-    crashReportingEnabled: false,
-    encryptStorage: false,
     clearHistoryOnExit: false,
+    retentionEnabled: false,
     historyRetentionDays: 90,
   },
   advanced: {

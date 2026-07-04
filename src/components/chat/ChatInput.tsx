@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, type KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { Send, Square, Paperclip, Mic, MicOff, Database } from "lucide-react";
+import { Send, Square, Paperclip, Mic, MicOff, Database, Wrench } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUIStore } from "@/stores/uiStore";
 import { useVoice } from "@/hooks/useVoice";
@@ -13,6 +13,8 @@ interface ChatInputProps {
   isGenerating: boolean;
   ragEnabled: boolean;
   onToggleRag: () => void;
+  toolsEnabled: boolean;
+  onToggleTools: () => void;
   disabled?: boolean;
   placeholder?: string;
   initialValue?: string;
@@ -25,6 +27,8 @@ export function ChatInput({
   isGenerating,
   ragEnabled,
   onToggleRag,
+  toolsEnabled,
+  onToggleTools,
   disabled = false,
   placeholder = "Ask anything… (Shift+Enter for new line)",
   initialValue = "",
@@ -145,6 +149,18 @@ export function ChatInput({
               label={ragEnabled ? "RAG enabled" : "RAG disabled"}
               active={ragEnabled}
               onClick={onToggleRag}
+            />
+
+            {/* Tools */}
+            <ToolbarButton
+              icon={<Wrench size={14} />}
+              label={
+                toolsEnabled
+                  ? "Tools enabled — the AI can search documents & read notes"
+                  : "Tools disabled"
+              }
+              active={toolsEnabled}
+              onClick={onToggleTools}
             />
 
             {/* Voice */}

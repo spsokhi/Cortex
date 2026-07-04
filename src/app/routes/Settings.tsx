@@ -8,7 +8,8 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useStatsStore } from "@/stores/statsStore";
 import { useChatStore } from "@/stores/chatStore";
-import { PERSONAS } from "@/data/personas";
+import { findPersona } from "@/stores/personaStore";
+import { clearChatHistory } from "@/services/privacy";
 import { cn } from "@/utils/cn";
 
 type Section = "general" | "models" | "rag" | "voice" | "appearance" | "privacy" | "advanced" | "stats";
@@ -257,6 +258,47 @@ function ModelSettings({ settings, onChange }: {
           ))}
         </select>
       </SettingRow>
+      <SettingRow label="Top P" description="Nucleus sampling — lower values make output more focused">
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min="0.1"
+            max="1"
+            step="0.05"
+            value={settings.topP ?? 0.9}
+            onChange={(e) => onChange({ topP: parseFloat(e.target.value) })}
+            className="w-24 accent-cortex-accent"
+          />
+          <span className="text-xs font-mono text-cortex-text w-8 text-right">
+            {(settings.topP ?? 0.9).toFixed(2)}
+          </span>
+        </div>
+      </SettingRow>
+      <SettingRow label="Seed" description="Fixed seed for reproducible outputs (0 = random)">
+        <input
+          type="number"
+          min="0"
+          value={settings.seed ?? 0}
+          onChange={(e) => onChange({ seed: parseInt(e.target.value) || 0 })}
+          className="cortex-input text-sm w-24 font-mono"
+        />
+      </SettingRow>
+      <SettingRow
+        label="Keep model loaded"
+        description="How long Ollama keeps the model in memory after a message — longer avoids reload delays"
+      >
+        <select
+          value={settings.keepAlive ?? "10m"}
+          onChange={(e) => onChange({ keepAlive: e.target.value })}
+          className="cortex-input text-sm"
+        >
+          <option value="5m">5 minutes</option>
+          <option value="10m">10 minutes</option>
+          <option value="30m">30 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="always">Always</option>
+        </select>
+      </SettingRow>
       <SettingRow label="Request timeout" description="Seconds before a request times out">
         <input
           type="number"
@@ -416,32 +458,66 @@ function PrivacySettings({ settings, onChange }: {
   settings: ReturnType<typeof useSettingsStore.getState>["settings"]["privacy"];
   onChange: (v: Partial<typeof settings>) => void;
 }) {
+  const { toast } = useUIStore();
+  const conversationCount = useChatStore((s) => s.conversations.length);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
   return (
     <div>
       <div className="p-4 rounded-xl bg-cortex-success/5 border border-cortex-success/20 mb-4">
         <p className="text-xs font-medium text-cortex-success">Privacy by default</p>
         <p className="text-xs text-cortex-text-muted mt-1">
-          Cortex never sends your data to the cloud. All processing is local.
+          Cortex sends no data anywhere — no telemetry, no crash reports, no analytics.
+          There is nothing to opt out of. Everything below controls only what is kept on your own disk.
         </p>
       </div>
-      <SettingRow label="Telemetry" description="Anonymous usage statistics (disabled by default)">
-        <Toggle checked={settings.telemetryEnabled} onChange={(v) => onChange({ telemetryEnabled: v })} />
-      </SettingRow>
-      <SettingRow label="Clear history on exit" description="Delete all conversations when Cortex closes">
+      <SettingRow
+        label="Don't keep chat history"
+        description="Conversations are wiped when Cortex starts its next session — nothing persists between sessions"
+      >
         <Toggle checked={settings.clearHistoryOnExit} onChange={(v) => onChange({ clearHistoryOnExit: v })} />
       </SettingRow>
-      <SettingRow label="Encrypt storage" description="Encrypt local database with a passphrase">
-        <Toggle checked={settings.encryptStorage} onChange={(v) => onChange({ encryptStorage: v })} />
+      <SettingRow
+        label="Auto-delete old chats"
+        description="On startup, delete conversations not updated within the period below. Pinned conversations are always kept"
+      >
+        <Toggle checked={settings.retentionEnabled ?? false} onChange={(v) => onChange({ retentionEnabled: v })} />
       </SettingRow>
-      <SettingRow label="History retention (days)" description="Auto-delete conversations older than N days">
+      <SettingRow label="Retention period (days)" description="Applies only when auto-delete is on">
         <input
           type="number"
-          min="0"
+          min="1"
           max="3650"
+          disabled={!settings.retentionEnabled}
           value={settings.historyRetentionDays}
-          onChange={(e) => onChange({ historyRetentionDays: parseInt(e.target.value) })}
-          className="cortex-input text-sm w-20 font-mono"
+          onChange={(e) => onChange({ historyRetentionDays: Math.max(1, parseInt(e.target.value) || 1) })}
+          className="cortex-input text-sm w-20 font-mono disabled:opacity-40"
         />
+      </SettingRow>
+      <SettingRow
+        label="Clear history now"
+        description={`Permanently delete all ${conversationCount} conversation${conversationCount !== 1 ? "s" : ""}`}
+      >
+        <button
+          onClick={() => {
+            if (!confirmingClear) {
+              setConfirmingClear(true);
+              setTimeout(() => setConfirmingClear(false), 4000);
+              return;
+            }
+            clearChatHistory();
+            setConfirmingClear(false);
+            toast("success", "History cleared", "All conversations were deleted.");
+          }}
+          className={cn(
+            "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
+            confirmingClear
+              ? "bg-cortex-error text-white border-cortex-error"
+              : "text-cortex-error border-cortex-error/40 hover:bg-cortex-error/10",
+          )}
+        >
+          {confirmingClear ? "Click again to confirm" : "Clear history"}
+        </button>
       </SettingRow>
     </div>
   );
@@ -531,7 +607,7 @@ function StatsSection() {
     if (topPersonas.length > 0) {
       lines.push("## Persona Usage", "| Persona | Uses |", "|---------|------|");
       topPersonas.forEach(([id, c]) => {
-        const p = PERSONAS.find((x) => x.id === id);
+        const p = findPersona(id);
         lines.push(`| ${p ? `${p.emoji} ${p.name}` : id} | ${c} |`);
       });
       lines.push("");
@@ -590,7 +666,7 @@ function StatsSection() {
           <p className="text-xs font-semibold text-cortex-text mb-3">Persona Usage</p>
           <div className="space-y-2">
             {topPersonas.map(([personaId, count]) => {
-              const persona = PERSONAS.find((p) => p.id === personaId);
+              const persona = findPersona(personaId);
               return (
                 <div key={personaId}>
                   <div className="flex justify-between text-2xs text-cortex-text-muted mb-1">

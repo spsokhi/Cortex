@@ -13,6 +13,7 @@ import { CommandPalette } from "@/components/common/CommandPalette";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { useModels } from "@/hooks/useModels";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { applyHistoryRetention } from "@/services/privacy";
 
 function ThemeApplier() {
   const theme = useSettingsStore((s) => s.settings.appearance.theme);
@@ -49,6 +50,9 @@ function AppBootstrap() {
     if (typeof window.__TAURI_INTERNALS__ !== "undefined") {
       document.addEventListener("contextmenu", (e) => e.preventDefault());
     }
+
+    // Enforce "clear history" / retention policies on previous sessions' data
+    applyHistoryRetention();
   }, []);
 
   return null;

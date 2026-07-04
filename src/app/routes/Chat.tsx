@@ -33,6 +33,7 @@ export function ChatRoute() {
   const rafRef = useRef<number | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [ragEnabled, setRagEnabled] = useState(false);
+  const [toolsEnabled, setToolsEnabled] = useState(false);
   const [inputValue, setInputValue] = useState("");
 
   const { activeConversation, loadConversation, createConversation, conversations } = useChatStore();
@@ -41,7 +42,11 @@ export function ChatRoute() {
   const { toast } = useUIStore();
   const { sendMessage, stopGeneration, regenerate, editAndResend, isGenerating } = useChat();
   const activePersonaId = usePersonaStore((s) => s.activePersonaId);
-  const activePersona = PERSONAS.find((p) => p.id === activePersonaId) ?? null;
+  const customPersonas = usePersonaStore((s) => s.customPersonas);
+  const activePersona =
+    PERSONAS.find((p) => p.id === activePersonaId) ??
+    customPersonas.find((p) => p.id === activePersonaId) ??
+    null;
 
   // Load conversation by ID from persisted store
   useEffect(() => {
@@ -130,8 +135,8 @@ export function ChatRoute() {
       const conv = createConversation(activeModelId);
       navigate(`/chat/${conv.id}`);
     }
-    await sendMessage(message, ragEnabled);
-  }, [activeConversation, activeModelId, createConversation, navigate, sendMessage, ragEnabled]);
+    await sendMessage(message, ragEnabled, toolsEnabled);
+  }, [activeConversation, activeModelId, createConversation, navigate, sendMessage, ragEnabled, toolsEnabled]);
 
   const messages = activeConversation?.messages ?? [];
   const isEmpty = messages.length === 0;
@@ -192,9 +197,9 @@ export function ChatRoute() {
                   message={message}
                   showTimestamp={settings.appearance.showTimestamps}
                   isLast={i === messages.length - 1}
-                  onRegenerate={() => void regenerate(ragEnabled)}
+                  onRegenerate={() => void regenerate(ragEnabled, toolsEnabled)}
                   onQuickAction={(prompt) => void handleSend(prompt)}
-                  onEdit={(id, newContent) => void editAndResend(id, newContent, ragEnabled)}
+                  onEdit={(id, newContent) => void editAndResend(id, newContent, ragEnabled, toolsEnabled)}
                 />
               ))}
               <div className="h-4" />
@@ -228,6 +233,8 @@ export function ChatRoute() {
           isGenerating={isGenerating}
           ragEnabled={ragEnabled}
           onToggleRag={() => setRagEnabled((v) => !v)}
+          toolsEnabled={toolsEnabled}
+          onToggleTools={() => setToolsEnabled((v) => !v)}
           initialValue={inputValue}
           onInputChange={setInputValue}
         />
