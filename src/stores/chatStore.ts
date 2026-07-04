@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, subscribeWithSelector } from "zustand/middleware";
 import { nanoid } from "nanoid";
+import { createDiskStorage } from "@/services/storage/persistStorage";
 import type { Conversation, ConversationSummary, Message, MessageRole } from "@/types/chat";
 
 interface ChatState {
@@ -105,13 +106,18 @@ export const useChatStore = create<ChatState>()(
         },
 
         deleteConversation: (id) => {
-          set((state) => ({
-            conversations: state.conversations.filter((c) => c.id !== id),
-            activeConversationId:
-              state.activeConversationId === id ? null : state.activeConversationId,
-            activeConversation:
-              state.activeConversation?.id === id ? null : state.activeConversation,
-          }));
+          set((state) => {
+            const savedConversations = { ...state.savedConversations };
+            delete savedConversations[id];
+            return {
+              conversations: state.conversations.filter((c) => c.id !== id),
+              savedConversations,
+              activeConversationId:
+                state.activeConversationId === id ? null : state.activeConversationId,
+              activeConversation:
+                state.activeConversation?.id === id ? null : state.activeConversation,
+            };
+          });
         },
 
         pinConversation: (id, pinned) => {
@@ -244,6 +250,10 @@ export const useChatStore = create<ChatState>()(
       }),
       {
         name: "cortex-chat-store",
+        storage: createDiskStorage<{
+          conversations: ConversationSummary[];
+          savedConversations: Record<string, Conversation>;
+        }>("cortex-chat.json"),
         partialize: (state) => ({
           conversations: state.conversations,
           savedConversations: state.savedConversations,

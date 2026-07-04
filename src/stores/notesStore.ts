@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
+import { createDiskStorage } from "@/services/storage/persistStorage";
 
 export interface Note {
   id: string;
@@ -57,6 +58,10 @@ export const useNotesStore = create<NotesState>()(
     }),
     {
       name: "cortex-notes-store",
+      storage: createDiskStorage<{ notes: Note[]; activeNoteId: string | null }>(
+        "cortex-notes.json",
+      ),
+      partialize: (state) => ({ notes: state.notes, activeNoteId: state.activeNoteId }),
     },
   ),
 );

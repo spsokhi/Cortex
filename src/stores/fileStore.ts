@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { createDiskStorage } from "@/services/storage/persistStorage";
 import type { IndexedFile, FileCollection } from "@/types/files";
 
 interface FileState {
@@ -124,6 +125,10 @@ export const useFileStore = create<FileState>()(
     }),
     {
       name: "cortex-file-store",
+      storage: createDiskStorage<{
+        files: IndexedFile[];
+        collections: FileCollection[];
+      }>("cortex-files.json"),
       partialize: (state) => ({
         files: state.files,
         collections: state.collections,
