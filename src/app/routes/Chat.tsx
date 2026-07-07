@@ -6,6 +6,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { ContextMeter } from "@/components/chat/ContextMeter";
 import { ModelSelector } from "@/components/models/ModelSelector";
 import { useChat } from "@/hooks/useChat";
 import { useChatStore } from "@/stores/chatStore";
@@ -13,6 +14,7 @@ import { useModelStore } from "@/stores/modelStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
 import { usePersonaStore } from "@/stores/personaStore";
+import { stripThinking } from "@/services/thinking";
 import { PERSONAS } from "@/data/personas";
 import type { Persona } from "@/data/personas";
 import { cn } from "@/utils/cn";
@@ -32,11 +34,13 @@ export function ChatRoute() {
   const userScrolledUpRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const [ragEnabled, setRagEnabled] = useState(false);
-  const [toolsEnabled, setToolsEnabled] = useState(false);
+  // Flags for a not-yet-created conversation (welcome screen); once a
+  // conversation exists the toggles live on it so they survive switching chats.
+  const [draftFlags, setDraftFlags] = useState({ rag: false, tools: false });
   const [inputValue, setInputValue] = useState("");
 
-  const { activeConversation, loadConversation, createConversation, conversations } = useChatStore();
+  const { activeConversation, loadConversation, createConversation, setConversationFlags, conversations } =
+    useChatStore();
   const { activeModelId } = useModelStore();
   const { settings } = useSettingsStore();
   const { toast } = useUIStore();
@@ -47,6 +51,21 @@ export function ChatRoute() {
     PERSONAS.find((p) => p.id === activePersonaId) ??
     customPersonas.find((p) => p.id === activePersonaId) ??
     null;
+
+  const ragEnabled = activeConversation ? (activeConversation.ragEnabled ?? false) : draftFlags.rag;
+  const toolsEnabled = activeConversation ? (activeConversation.toolsEnabled ?? false) : draftFlags.tools;
+
+  const toggleRag = useCallback(() => {
+    const conv = useChatStore.getState().activeConversation;
+    if (conv) setConversationFlags(conv.id, { ragEnabled: !(conv.ragEnabled ?? false) });
+    else setDraftFlags((f) => ({ ...f, rag: !f.rag }));
+  }, [setConversationFlags]);
+
+  const toggleTools = useCallback(() => {
+    const conv = useChatStore.getState().activeConversation;
+    if (conv) setConversationFlags(conv.id, { toolsEnabled: !(conv.toolsEnabled ?? false) });
+    else setDraftFlags((f) => ({ ...f, tools: !f.tools }));
+  }, [setConversationFlags]);
 
   // Load conversation by ID from persisted store
   useEffect(() => {
@@ -113,7 +132,9 @@ export function ChatRoute() {
     ];
     for (const msg of activeConversation.messages) {
       if (msg.status !== "complete") continue;
-      lines.push(`## ${msg.role === "user" ? "You" : "Cortex"}\n\n${msg.content}\n`);
+      const content = msg.role === "assistant" ? stripThinking(msg.content) : msg.content;
+      if (!content.trim()) continue;
+      lines.push(`## ${msg.role === "user" ? "You" : "Cortex"}\n\n${content}\n`);
       lines.push("---\n");
     }
     try {
@@ -132,11 +153,14 @@ export function ChatRoute() {
 
   const handleSend = useCallback(async (message: string) => {
     if (!activeConversation) {
-      const conv = createConversation(activeModelId);
+      const conv = createConversation(activeModelId, undefined, activePersona?.systemPrompt);
+      if (draftFlags.rag || draftFlags.tools) {
+        setConversationFlags(conv.id, { ragEnabled: draftFlags.rag, toolsEnabled: draftFlags.tools });
+      }
       navigate(`/chat/${conv.id}`);
     }
     await sendMessage(message, ragEnabled, toolsEnabled);
-  }, [activeConversation, activeModelId, createConversation, navigate, sendMessage, ragEnabled, toolsEnabled]);
+  }, [activeConversation, activeModelId, activePersona, createConversation, setConversationFlags, draftFlags, navigate, sendMessage, ragEnabled, toolsEnabled]);
 
   const messages = activeConversation?.messages ?? [];
   const isEmpty = messages.length === 0;
@@ -161,6 +185,7 @@ export function ChatRoute() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <ContextMeter />
           {activeConversation && messages.length > 0 && (
             <button
               onClick={() => void handleExport()}
@@ -232,9 +257,9 @@ export function ChatRoute() {
           onStop={stopGeneration}
           isGenerating={isGenerating}
           ragEnabled={ragEnabled}
-          onToggleRag={() => setRagEnabled((v) => !v)}
+          onToggleRag={toggleRag}
           toolsEnabled={toolsEnabled}
-          onToggleTools={() => setToolsEnabled((v) => !v)}
+          onToggleTools={toggleTools}
           initialValue={inputValue}
           onInputChange={setInputValue}
         />

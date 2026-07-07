@@ -8,10 +8,9 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useStatsStore } from "@/stores/statsStore";
 import { ollamaClient, type OllamaChatMessage } from "@/services/api/ollama";
 import { retrieveRag, EMPTY_RAG } from "@/services/rag";
-import { buildChatMessages, type ChatMessagePayload } from "@/services/context";
-import { stripThinking } from "@/services/thinking";
+import { buildChatMessages, toHistoryPayloads, type ChatMessagePayload } from "@/services/context";
 import { TOOL_DEFINITIONS, MAX_TOOL_ROUNDS, executeTool, parseInlineToolCalls } from "@/services/tools";
-import type { Message, StreamEvent, ToolCall } from "@/types/chat";
+import type { StreamEvent, ToolCall } from "@/types/chat";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 /** Generation options come from Settings → Models; fallbacks cover settings persisted by older versions. */
@@ -28,22 +27,6 @@ function generationOptions() {
 
 // Conversations already warned (this session) that their history is being trimmed
 const trimWarned = new Set<string>();
-
-/**
- * Completed messages as request payloads. Assistant <think> blocks are
- * stripped — feeding chain-of-thought back into reasoning models degrades
- * them (and wastes context) — and messages left empty by that (e.g. aborted
- * mid-thought) are dropped.
- */
-function toHistoryPayloads(messages: Message[]): ChatMessagePayload[] {
-  return messages
-    .filter((m) => m.status === "complete")
-    .map((m) => ({
-      role: m.role,
-      content: m.role === "assistant" ? stripThinking(m.content) : m.content,
-    }))
-    .filter((m) => m.content.trim().length > 0);
-}
 
 export function useChat() {
   const abortRef = useRef<AbortController | null>(null);

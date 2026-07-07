@@ -73,8 +73,8 @@ export function Sidebar() {
   const pinnedConversations = filtered.filter((c) => c.pinned);
   const recentConversations = filtered
     .filter((c) => !c.pinned)
-    .slice(0, 20)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, 20);
 
   return (
     <motion.aside
