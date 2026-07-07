@@ -26,6 +26,8 @@ export interface Message {
   modelId?: string;
   tokenCount?: number;
   tokensPerSec?: number;
+  /** Wall-clock seconds spent inside a <think> block (reasoning models) */
+  thinkingSeconds?: number;
   toolCalls?: ToolCall[];
   citations?: CitationSource[];
   createdAt: number;
@@ -40,6 +42,9 @@ export interface Conversation {
   messages: Message[];
   tags: string[];
   pinned: boolean;
+  /** RAG / tool-calling toggles live on the conversation so they survive switching chats */
+  ragEnabled?: boolean;
+  toolsEnabled?: boolean;
   createdAt: number;
   updatedAt: number;
 }

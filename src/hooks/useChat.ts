@@ -9,8 +9,9 @@ import { useStatsStore } from "@/stores/statsStore";
 import { ollamaClient, type OllamaChatMessage } from "@/services/api/ollama";
 import { retrieveRag, EMPTY_RAG } from "@/services/rag";
 import { buildChatMessages, type ChatMessagePayload } from "@/services/context";
+import { stripThinking } from "@/services/thinking";
 import { TOOL_DEFINITIONS, MAX_TOOL_ROUNDS, executeTool, parseInlineToolCalls } from "@/services/tools";
-import type { StreamEvent, ToolCall } from "@/types/chat";
+import type { Message, StreamEvent, ToolCall } from "@/types/chat";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 /** Generation options come from Settings → Models; fallbacks cover settings persisted by older versions. */
@@ -27,6 +28,22 @@ function generationOptions() {
 
 // Conversations already warned (this session) that their history is being trimmed
 const trimWarned = new Set<string>();
+
+/**
+ * Completed messages as request payloads. Assistant <think> blocks are
+ * stripped — feeding chain-of-thought back into reasoning models degrades
+ * them (and wastes context) — and messages left empty by that (e.g. aborted
+ * mid-thought) are dropped.
+ */
+function toHistoryPayloads(messages: Message[]): ChatMessagePayload[] {
+  return messages
+    .filter((m) => m.status === "complete")
+    .map((m) => ({
+      role: m.role,
+      content: m.role === "assistant" ? stripThinking(m.content) : m.content,
+    }))
+    .filter((m) => m.content.trim().length > 0);
+}
 
 export function useChat() {
   const abortRef = useRef<AbortController | null>(null);
@@ -95,10 +112,26 @@ export function useChat() {
         let lastTpsWrite = 0;
         const setTps = useChatStore.getState().setStreamingTps;
 
+        // Reasoning models open with <think>; time until </think> arrives
+        // becomes the "Thought for Xs" label on the message.
+        let streamText = "";
+        let thinkPhase: "unknown" | "active" | "done" = "unknown";
+        let thinkingSeconds: number | undefined;
+
         const onToken = (token: string) => {
           if (firstTokenAt === 0) firstTokenAt = performance.now();
           streamedTokens++;
           appendToMessage(assistantMsgId, token);
+          if (thinkPhase !== "done") {
+            streamText += token;
+            if (thinkPhase === "unknown" && streamText.trimStart().length >= "<think>".length) {
+              thinkPhase = streamText.trimStart().startsWith("<think>") ? "active" : "done";
+            }
+            if (thinkPhase === "active" && streamText.includes("</think>")) {
+              thinkPhase = "done";
+              thinkingSeconds = (performance.now() - firstTokenAt) / 1000;
+            }
+          }
           const now = performance.now();
           if (now - lastTpsWrite > 200) {
             lastTpsWrite = now;
@@ -180,6 +213,7 @@ export function useChat() {
           content: fullContent,
           tokenCount: result.completionTokens,
           tokensPerSec: tps > 0 ? Math.round(tps * 10) / 10 : undefined,
+          ...(thinkingSeconds ? { thinkingSeconds: Math.round(thinkingSeconds * 10) / 10 } : {}),
           ...(recordedCalls.length ? { toolCalls: recordedCalls } : {}),
         });
 
@@ -259,9 +293,7 @@ export function useChat() {
       }
 
       const systemContent = [conversation.systemPrompt, rag.context].filter(Boolean).join("\n\n");
-      const history = conversation.messages
-        .filter((m) => m.status === "complete")
-        .map((m) => ({ role: m.role, content: m.content }));
+      const history = toHistoryPayloads(conversation.messages);
 
       const messages = fitToContext(conversation.id, systemContent, history, content);
       const result = await runGeneration(assistantMsgId, messages, toolsEnabled);
@@ -351,9 +383,7 @@ export function useChat() {
       if (rag.citations.length) updateMessage(newId, { citations: rag.citations });
 
       const systemContent = [conv.systemPrompt, rag.context].filter(Boolean).join("\n\n");
-      const history = msgs
-        .filter((m) => m.id !== lastAssistant.id && m.status === "complete")
-        .map((m) => ({ role: m.role, content: m.content }));
+      const history = toHistoryPayloads(msgs.filter((m) => m.id !== lastAssistant.id));
 
       const messages = fitToContext(conv.id, systemContent, history);
       await runGeneration(newId, messages, toolsEnabled);

@@ -10,6 +10,9 @@
  * counts aren't worth a dependency for a safety margin.
  */
 
+import { stripThinking } from "@/services/thinking";
+import type { Message } from "@/types/chat";
+
 export interface ChatMessagePayload {
   role: string;
   content: string;
@@ -26,6 +29,50 @@ export function estimateTokens(text: string): number {
 
 function messageCost(message: ChatMessagePayload): number {
   return estimateTokens(message.content) + PER_MESSAGE_OVERHEAD_TOKENS;
+}
+
+/**
+ * Completed messages as request payloads. Assistant <think> blocks are
+ * stripped — feeding chain-of-thought back into reasoning models degrades
+ * them (and wastes context) — and messages left empty by that (e.g. aborted
+ * mid-thought) are dropped.
+ */
+export function toHistoryPayloads(messages: Message[]): ChatMessagePayload[] {
+  return messages
+    .filter((m) => m.status === "complete")
+    .map((m) => ({
+      role: m.role,
+      content: m.role === "assistant" ? stripThinking(m.content) : m.content,
+    }))
+    .filter((m) => m.content.trim().length > 0);
+}
+
+export interface ContextUsage {
+  /** Estimated prompt tokens currently in play (system prompt + history) */
+  usedTokens: number;
+  /** Prompt budget once the response reserve is set aside */
+  budgetTokens: number;
+  /** usedTokens / budgetTokens — at 1 or above, the oldest messages get dropped */
+  fraction: number;
+}
+
+/** Mirror of buildChatMessages' budget math, for showing usage in the UI. */
+export function estimateContextUsage(options: {
+  systemContent: string;
+  history: ChatMessagePayload[];
+  numCtx: number;
+}): ContextUsage {
+  const { systemContent, history, numCtx } = options;
+  const reserve = Math.min(
+    MAX_RESPONSE_RESERVE_TOKENS,
+    Math.floor(numCtx * RESPONSE_RESERVE_FRACTION),
+  );
+  const budgetTokens = Math.max(1, numCtx - reserve);
+  let usedTokens = systemContent
+    ? estimateTokens(systemContent) + PER_MESSAGE_OVERHEAD_TOKENS
+    : 0;
+  for (const message of history) usedTokens += messageCost(message);
+  return { usedTokens, budgetTokens, fraction: usedTokens / budgetTokens };
 }
 
 export interface BuildChatMessagesOptions {

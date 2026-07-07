@@ -2,13 +2,15 @@ import { memo, useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Copy, Check, Bot, User, AlertCircle, ChevronDown, ChevronUp, RotateCcw, AlignLeft, Lightbulb, ArrowRight, StickyNote, Pencil, X, Wrench } from "lucide-react";
+import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { Copy, Check, Bot, User, AlertCircle, Brain, ChevronDown, ChevronUp, RotateCcw, AlignLeft, Lightbulb, ArrowRight, StickyNote, Pencil, X, Wrench } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Message } from "@/types/chat";
 import { useNotesStore } from "@/stores/notesStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useChatStore } from "@/stores/chatStore";
+import { useIsLightTheme } from "@/hooks/useTheme";
+import { splitThinking, formatThinkingDuration } from "@/services/thinking";
 import { cn } from "@/utils/cn";
 import { formatAbsoluteTime } from "@/utils/format";
 
@@ -32,6 +34,11 @@ export const ChatMessage = memo(function ChatMessage({
   const isUser = message.role === "user";
   const isStreaming = message.status === "streaming";
   const isError = message.status === "error";
+  // Reasoning models wrap chain-of-thought in <think>…</think> — split it
+  // out so it renders as a collapsible block instead of answer text.
+  const { thinking, answer, thinkingOpen } = isUser
+    ? { thinking: null, answer: message.content, thinkingOpen: false }
+    : splitThinking(message.content);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(message.content);
   const editRef = useRef<HTMLTextAreaElement>(null);
@@ -153,12 +160,19 @@ export const ChatMessage = memo(function ChatMessage({
             )
           ) : (
             <div className={cn("prose-cortex", isStreaming && !message.content && "min-h-[1.5rem]")}>
-              {message.content ? (
-                <MarkdownContent content={message.content} />
-              ) : isStreaming ? (
+              {thinking !== null && (
+                <ThinkingBlock
+                  thinking={thinking}
+                  isActive={thinkingOpen && isStreaming}
+                  seconds={message.thinkingSeconds}
+                />
+              )}
+              {answer ? (
+                <MarkdownContent content={answer} />
+              ) : isStreaming && thinking === null ? (
                 <span className="inline-block w-2 h-4 bg-cortex-accent rounded-sm animate-blink" />
               ) : null}
-              {isStreaming && message.content && (
+              {isStreaming && answer && (
                 <span className="inline-block w-2 h-4 bg-cortex-accent rounded-sm animate-blink ml-0.5 align-middle" />
               )}
             </div>
@@ -178,7 +192,7 @@ export const ChatMessage = memo(function ChatMessage({
                   <Pencil size={11} />
                 </button>
               )}
-              <CopyButton text={message.content} />
+              <CopyButton text={isUser ? message.content : answer} />
             </div>
           )}
         </div>
@@ -228,10 +242,10 @@ export const ChatMessage = memo(function ChatMessage({
                 onClick={() => {
                   const { createNote, updateNote } = useNotesStore.getState();
                   const note = createNote();
-                  const preview = message.content.slice(0, 60).replace(/\n/g, " ");
+                  const preview = answer.slice(0, 60).replace(/\n/g, " ");
                   updateNote(note.id, {
-                    title: preview + (message.content.length > 60 ? "…" : ""),
-                    content: message.content,
+                    title: preview + (answer.length > 60 ? "…" : ""),
+                    content: answer,
                   });
                   useUIStore.getState().toast("success", "Saved to Notes");
                 }}
@@ -321,8 +335,54 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
+/**
+ * Collapsible chain-of-thought. Auto-expanded while the model is still
+ * thinking, auto-collapses when the answer starts; a manual toggle wins
+ * over both.
+ */
+function ThinkingBlock({
+  thinking,
+  isActive,
+  seconds,
+}: {
+  thinking: string;
+  isActive: boolean;
+  seconds?: number;
+}) {
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const expanded = userToggled ?? isActive;
+
+  return (
+    <div className="mb-3">
+      <button
+        onClick={() => setUserToggled(!expanded)}
+        className={cn(
+          "flex items-center gap-1.5 text-2xs transition-colors",
+          isActive ? "text-cortex-accent" : "text-cortex-text-dim hover:text-cortex-text",
+        )}
+      >
+        <Brain size={11} className={cn(isActive && "animate-pulse")} />
+        <span className={cn(isActive && "animate-pulse")}>
+          {isActive
+            ? "Thinking…"
+            : seconds
+              ? `Thought for ${formatThinkingDuration(seconds)}`
+              : "Thoughts"}
+        </span>
+        {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+      </button>
+      {expanded && thinking && (
+        <div className="mt-2 pl-3 border-l-2 border-cortex-border text-xs leading-relaxed text-cortex-text-muted whitespace-pre-wrap break-words">
+          {thinking}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
   const [copied, setCopied] = useState(false);
+  const isLight = useIsLightTheme();
 
   const copy = async () => {
     await navigator.clipboard.writeText(code);
@@ -348,11 +408,11 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
       </div>
       <SyntaxHighlighter
         language={lang}
-        style={oneDark}
+        style={isLight ? oneLight : oneDark}
         customStyle={{
           margin: 0,
           padding: "1rem",
-          background: "#111113",
+          background: isLight ? "#fafafa" : "#111113",
           fontSize: "0.8rem",
           lineHeight: "1.6",
         }}

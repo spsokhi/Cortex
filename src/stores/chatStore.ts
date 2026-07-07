@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, subscribeWithSelector } from "zustand/middleware";
 import { nanoid } from "nanoid";
 import { createDiskStorage } from "@/services/storage/persistStorage";
+import { stripThinking } from "@/services/thinking";
 import type { Conversation, ConversationSummary, Message, MessageRole } from "@/types/chat";
 
 interface ChatState {
@@ -20,6 +21,7 @@ interface ChatState {
   updateConversationTitle: (id: string, title: string) => void;
   deleteConversation: (id: string) => void;
   pinConversation: (id: string, pinned: boolean) => void;
+  setConversationFlags: (id: string, flags: { ragEnabled?: boolean; toolsEnabled?: boolean }) => void;
   addMessage: (conversationId: string, role: MessageRole, content: string) => Message;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   removeMessage: (messageId: string) => void;
@@ -128,6 +130,18 @@ export const useChatStore = create<ChatState>()(
           }));
         },
 
+        setConversationFlags: (id, flags) => {
+          set((state) => ({
+            activeConversation:
+              state.activeConversation?.id === id
+                ? { ...state.activeConversation, ...flags }
+                : state.activeConversation,
+            savedConversations: state.savedConversations[id]
+              ? { ...state.savedConversations, [id]: { ...state.savedConversations[id], ...flags } }
+              : state.savedConversations,
+          }));
+        },
+
         addMessage: (conversationId, role, content) => {
           const now = Date.now();
           const message: Message = {
@@ -232,7 +246,7 @@ export const useChatStore = create<ChatState>()(
             modelId: conversation.modelId,
             pinned: conversation.pinned,
             tags: conversation.tags,
-            lastMessage: lastMsg?.content.slice(0, 80),
+            lastMessage: lastMsg ? stripThinking(lastMsg.content).slice(0, 80) : undefined,
             messageCount: conversation.messages.length,
             createdAt: conversation.createdAt,
             updatedAt: conversation.updatedAt,
