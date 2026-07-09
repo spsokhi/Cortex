@@ -10,23 +10,31 @@ import { NotesRoute } from "@/app/routes/Notes";
 import { SettingsRoute } from "@/app/routes/Settings";
 import { NotificationStack } from "@/components/common/NotificationStack";
 import { CommandPalette } from "@/components/common/CommandPalette";
+import { ShortcutsHelp } from "@/components/common/ShortcutsHelp";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { useModels } from "@/hooks/useModels";
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { applyHistoryRetention } from "@/services/privacy";
+import { findAccent } from "@/data/accents";
 
 function ThemeApplier() {
   const theme = useSettingsStore((s) => s.settings.appearance.theme);
+  const accentId = useSettingsStore((s) => s.settings.appearance.accent ?? "indigo");
 
   useEffect(() => {
     const root = document.documentElement;
 
     const applyTheme = (prefersDark: boolean) => {
-      if (theme === "light" || (theme === "system" && !prefersDark)) {
-        root.classList.add("light");
-      } else {
-        root.classList.remove("light");
-      }
+      const isLight = theme === "light" || (theme === "system" && !prefersDark);
+      root.classList.toggle("light", isLight);
+
+      // Accent vars are set inline so they win over both theme blocks in styles.css
+      const accent = findAccent(accentId)[isLight ? "light" : "dark"];
+      root.style.setProperty("--cortex-accent", accent.accent);
+      root.style.setProperty("--cortex-accent-dim", accent.accentDim);
+      root.style.setProperty("--cortex-user-bg", accent.userBg);
+      root.style.setProperty("--cortex-user-border", accent.userBorder);
     };
 
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -37,13 +45,14 @@ function ThemeApplier() {
       mq.addEventListener("change", handler);
       return () => mq.removeEventListener("change", handler);
     }
-  }, [theme]);
+  }, [theme, accentId]);
 
   return null;
 }
 
 function AppBootstrap() {
   useModels(); // Kick off model polling at top level
+  useGlobalShortcuts();
 
   useEffect(() => {
     // Disable context menu in production Tauri builds
@@ -85,6 +94,7 @@ export default function App() {
         </Routes>
         <NotificationStack />
         <CommandPalette />
+        <ShortcutsHelp />
       </BrowserRouter>
     </ErrorBoundary>
   );

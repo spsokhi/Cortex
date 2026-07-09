@@ -75,12 +75,13 @@ export default {
         "cortex-grid": "32px 32px",
       },
       boxShadow: {
-        "cortex-sm": "0 0 0 1px rgba(129, 140, 248, 0.1)",
+        // Accent-tinted shadows track the --cortex-accent var so they follow the accent setting
+        "cortex-sm": "0 0 0 1px rgb(var(--cortex-accent) / 0.1)",
         "cortex-md":
-          "0 0 0 1px rgba(129, 140, 248, 0.2), 0 4px 16px rgba(0,0,0,0.4)",
+          "0 0 0 1px rgb(var(--cortex-accent) / 0.2), 0 4px 16px rgba(0,0,0,0.4)",
         "cortex-lg":
-          "0 0 0 1px rgba(129, 140, 248, 0.15), 0 8px 32px rgba(0,0,0,0.6)",
-        "cortex-glow": "0 0 24px rgba(129, 140, 248, 0.15)",
+          "0 0 0 1px rgb(var(--cortex-accent) / 0.15), 0 8px 32px rgba(0,0,0,0.6)",
+        "cortex-glow": "0 0 24px rgb(var(--cortex-accent) / 0.15)",
       },
       transitionTimingFunction: {
         "cortex-ease": "cubic-bezier(0.16, 1, 0.3, 1)",

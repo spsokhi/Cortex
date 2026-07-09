@@ -11,6 +11,7 @@ interface UIState {
   rightPanelOpen: boolean;
   notifications: NotificationPayload[];
   commandPaletteOpen: boolean;
+  shortcutsHelpOpen: boolean;
   searchOpen: boolean;
   settingsOpen: boolean;
   modelManagerOpen: boolean;
@@ -26,6 +27,7 @@ interface UIState {
   removeNotification: (id: string) => void;
   clearNotifications: () => void;
   setCommandPalette: (open: boolean) => void;
+  setShortcutsHelp: (open: boolean) => void;
   setSearchOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setModelManagerOpen: (open: boolean) => void;
@@ -42,6 +44,7 @@ export const useUIStore = create<UIState>()((set) => ({
   rightPanelOpen: false,
   notifications: [],
   commandPaletteOpen: false,
+  shortcutsHelpOpen: false,
   searchOpen: false,
   settingsOpen: false,
   modelManagerOpen: false,
@@ -81,6 +84,7 @@ export const useUIStore = create<UIState>()((set) => ({
   clearNotifications: () => set({ notifications: [] }),
 
   setCommandPalette: (open) => set({ commandPaletteOpen: open }),
+  setShortcutsHelp: (open) => set({ shortcutsHelpOpen: open }),
   setSearchOpen: (open) => set({ searchOpen: open }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setModelManagerOpen: (open) => set({ modelManagerOpen: open }),

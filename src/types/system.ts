@@ -30,6 +30,8 @@ export interface GeneralSettings {
 
 export interface AppearanceSettings {
   theme: "dark" | "light" | "system";
+  /** Accent preset id from src/data/accents.ts; read with ?? "indigo" — older persisted settings lack it */
+  accent?: string;
   fontSize: "sm" | "md" | "lg";
   fontFamily: string;
   compactMode: boolean;
@@ -104,6 +106,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   appearance: {
     theme: "dark",
+    accent: "indigo",
     fontSize: "md",
     fontFamily: "Inter var",
     compactMode: false,

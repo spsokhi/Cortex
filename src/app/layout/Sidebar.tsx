@@ -18,6 +18,7 @@ import {
   Trash2,
   Bot,
   Pencil,
+  X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useUIStore } from "@/stores/uiStore";
@@ -28,6 +29,7 @@ import { PERSONAS, type Persona } from "@/data/personas";
 import { PersonaEditor } from "@/components/personas/PersonaEditor";
 import { cn } from "@/utils/cn";
 import { truncate, formatRelativeTime } from "@/utils/format";
+import type { ConversationSummary } from "@/types/chat";
 
 type NavItem = {
   icon: React.ElementType;
@@ -69,12 +71,20 @@ export function Sidebar() {
     navigate("/chat");
   }, [createConversation, activeModelId, navigate]);
 
-  const filtered = filterTag ? conversations.filter((c) => c.tags.includes(filterTag)) : conversations;
+  const [searchQuery, setSearchQuery] = useState("");
+  const query = searchQuery.trim().toLowerCase();
+  const filtered = conversations.filter((c) => {
+    if (filterTag && !c.tags.includes(filterTag)) return false;
+    if (
+      query &&
+      !c.title.toLowerCase().includes(query) &&
+      !(c.lastMessage ?? "").toLowerCase().includes(query)
+    )
+      return false;
+    return true;
+  });
   const pinnedConversations = filtered.filter((c) => c.pinned);
-  const recentConversations = filtered
-    .filter((c) => !c.pinned)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, 20);
+  const dateGroups = groupByDate(filtered.filter((c) => !c.pinned));
 
   return (
     <motion.aside
@@ -323,6 +333,31 @@ export function Sidebar() {
       )}
 
       {/* Conversation history (only when expanded & on chat tab) */}
+      {isExpanded && conversations.length > 0 && (
+        <div className="px-2 pt-2 flex-shrink-0">
+          <div className="relative">
+            <Search
+              size={11}
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-cortex-text-dim pointer-events-none"
+            />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter chats…"
+              className="w-full bg-cortex-surface-2 border border-cortex-border rounded-lg pl-6 pr-6 py-1 text-xs text-cortex-text placeholder-cortex-text-dim outline-none focus:border-cortex-accent/50 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-cortex-text-dim hover:text-cortex-text transition-colors"
+                title="Clear filter"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {isExpanded && (
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2 space-y-1 no-scrollbar">
           {/* Tag filter bar */}
@@ -370,12 +405,12 @@ export function Sidebar() {
             </div>
           )}
 
-          {recentConversations.length > 0 && (
-            <div>
+          {dateGroups.map((group) => (
+            <div key={group.label}>
               <div className="px-2 py-1 text-2xs text-cortex-text-dim uppercase tracking-wider font-medium">
-                {filterTag ? `Tagged: ${filterTag}` : "Recent"}
+                {group.label}
               </div>
-              {recentConversations.map((c) => (
+              {group.items.map((c) => (
                 <ConversationItem
                   key={c.id}
                   id={c.id}
@@ -391,7 +426,7 @@ export function Sidebar() {
                 />
               ))}
             </div>
-          )}
+          ))}
 
           {conversations.length === 0 && (
             <div className="px-3 py-8 text-center text-cortex-text-dim text-xs">
@@ -400,9 +435,11 @@ export function Sidebar() {
               Start a new chat above.
             </div>
           )}
-          {filterTag && filtered.length === 0 && conversations.length > 0 && (
+          {(filterTag || query) && filtered.length === 0 && conversations.length > 0 && (
             <div className="px-3 py-6 text-center text-cortex-text-dim text-xs">
-              No chats tagged "{filterTag}".
+              No chats match{filterTag ? ` tag "${filterTag}"` : ""}
+              {filterTag && query ? " and" : ""}
+              {query ? ` "${searchQuery.trim()}"` : ""}.
             </div>
           )}
         </div>
@@ -444,6 +481,26 @@ export function Sidebar() {
         )}
     </motion.aside>
   );
+}
+
+const DAY_MS = 86_400_000;
+
+function groupByDate(conversations: ConversationSummary[]) {
+  const startOfToday = new Date().setHours(0, 0, 0, 0);
+  const groups: { label: string; items: ConversationSummary[] }[] = [
+    { label: "Today", items: [] },
+    { label: "Yesterday", items: [] },
+    { label: "Previous 7 days", items: [] },
+    { label: "Older", items: [] },
+  ];
+  const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  for (const c of sorted) {
+    if (c.updatedAt >= startOfToday) groups[0].items.push(c);
+    else if (c.updatedAt >= startOfToday - DAY_MS) groups[1].items.push(c);
+    else if (c.updatedAt >= startOfToday - 7 * DAY_MS) groups[2].items.push(c);
+    else groups[3].items.push(c);
+  }
+  return groups.filter((g) => g.items.length > 0);
 }
 
 const TAG_COLORS = [

@@ -28,8 +28,16 @@ function generationOptions() {
 // Conversations already warned (this session) that their history is being trimmed
 const trimWarned = new Set<string>();
 
+// Module-scoped: only one generation runs at a time, and global shortcuts
+// (Esc-to-stop) need to abort it from outside the chat route's hook instance.
+const activeAbort: { current: AbortController | null } = { current: null };
+
+/** Abort the in-flight generation, if any. Safe to call from anywhere. */
+export function stopActiveGeneration() {
+  activeAbort.current?.abort();
+}
+
 export function useChat() {
-  const abortRef = useRef<AbortController | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
   const {
@@ -86,7 +94,7 @@ export function useChat() {
    */
   const runGeneration = useCallback(
     async (assistantMsgId: string, messages: ChatMessagePayload[], toolsEnabled = false) => {
-      abortRef.current = new AbortController();
+      activeAbort.current = new AbortController();
       try {
         const { temperature, numCtx, topP, seed, keepAlive } = generationOptions();
 
@@ -142,7 +150,7 @@ export function useChat() {
                 seed,
                 keepAlive,
                 tools: useTools ? TOOL_DEFINITIONS : undefined,
-                signal: abortRef.current.signal,
+                signal: activeAbort.current.signal,
               },
               onToken,
             );
@@ -213,7 +221,7 @@ export function useChat() {
       } finally {
         setGenerating(false);
         useChatStore.getState().setStreamingTps(0);
-        abortRef.current = null;
+        activeAbort.current = null;
       }
     },
     [activeModelId, appendToMessage, updateMessage, setGenerating, toast],
@@ -333,7 +341,7 @@ export function useChat() {
   );
 
   const stopGeneration = useCallback(() => {
-    abortRef.current?.abort();
+    stopActiveGeneration();
     unlistenRef.current?.();
   }, []);
 

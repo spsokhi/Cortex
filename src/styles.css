@@ -188,6 +188,6 @@
   }
 
   .glow-accent {
-    box-shadow: 0 0 20px rgba(129, 140, 248, 0.2);
+    box-shadow: 0 0 20px rgb(var(--cortex-accent) / 0.2);
   }
 }

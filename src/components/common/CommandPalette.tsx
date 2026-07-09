@@ -8,6 +8,7 @@ import {
 import { useUIStore } from "@/stores/uiStore";
 import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
+import { usePersonaStore, findPersona } from "@/stores/personaStore";
 import { useNotesStore } from "@/stores/notesStore";
 import { useFileStore } from "@/stores/fileStore";
 import { searchEverything } from "@/services/search";
@@ -91,7 +92,8 @@ export function CommandPalette() {
       label: "New chat",
       icon: <Plus size={14} />,
       action: () => {
-        createConversation(activeModelId);
+        const persona = findPersona(usePersonaStore.getState().activePersonaId);
+        createConversation(activeModelId, undefined, persona?.systemPrompt);
         navigate("/chat");
         close();
       },

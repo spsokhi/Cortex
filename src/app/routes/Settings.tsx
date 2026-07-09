@@ -10,6 +10,7 @@ import { useStatsStore } from "@/stores/statsStore";
 import { useChatStore } from "@/stores/chatStore";
 import { findPersona } from "@/stores/personaStore";
 import { clearChatHistory } from "@/services/privacy";
+import { ACCENT_PRESETS } from "@/data/accents";
 import { cn } from "@/utils/cn";
 
 type Section = "general" | "models" | "rag" | "voice" | "appearance" | "privacy" | "advanced" | "stats";
@@ -428,6 +429,30 @@ function AppearanceSettings({ settings, onChange }: {
               {t}
             </button>
           ))}
+        </div>
+      </SettingRow>
+      <SettingRow label="Accent color" description="Highlight color used across the app">
+        <div className="flex gap-1.5">
+          {ACCENT_PRESETS.map((preset) => {
+            const selected = (settings.accent ?? "indigo") === preset.id;
+            return (
+              <button
+                key={preset.id}
+                onClick={() => onChange({ accent: preset.id })}
+                title={preset.label}
+                className={cn(
+                  "w-6 h-6 rounded-full transition-all duration-150",
+                  selected
+                    ? "ring-2 ring-offset-2 ring-offset-cortex-surface scale-110"
+                    : "hover:scale-110 opacity-80 hover:opacity-100",
+                )}
+                style={{
+                  backgroundColor: `rgb(${preset.dark.accent})`,
+                  ...(selected ? { ["--tw-ring-color" as string]: `rgb(${preset.dark.accent})` } : {}),
+                }}
+              />
+            );
+          })}
         </div>
       </SettingRow>
       <SettingRow label="Font size" description="UI text size">

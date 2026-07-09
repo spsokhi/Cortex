@@ -114,7 +114,7 @@ export function ChatInput({
           "bg-cortex-surface-2",
           isRecording
             ? "border-cortex-error/50 shadow-[0_0_0_1px_rgba(248,113,113,0.3)]"
-            : "border-cortex-border focus-within:border-cortex-accent/50 focus-within:shadow-[0_0_0_1px_rgba(129,140,248,0.2)]",
+            : "border-cortex-border focus-within:border-cortex-accent/50 focus-within:shadow-[0_0_0_1px_rgb(var(--cortex-accent)/0.2)]",
         )}
       >
         {/* Textarea */}
