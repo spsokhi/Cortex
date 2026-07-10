@@ -5,22 +5,12 @@ import {
   Code2, Trash2, RefreshCw, CheckCircle2, Clock, AlertCircle,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { readTextFile, readFile } from "@tauri-apps/plugin-fs";
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
-
-GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
 import { useFileStore } from "@/stores/fileStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
-import { embedChunks } from "@/services/rag";
+import { addBrowserFile, addPathFile, indexFileContent } from "@/services/indexing";
 import { cn } from "@/utils/cn";
 import { formatBytes, formatRelativeTime } from "@/utils/format";
 import type { IndexedFile } from "@/types/files";
-import { getFileType } from "@/types/files";
-import { nanoid } from "nanoid";
 
 const FILE_ICONS: Record<string, React.ReactNode> = {
   pdf: <FileText size={16} className="text-red-400" />,
@@ -41,7 +31,7 @@ const STATUS_ICONS = {
 };
 
 export function FilesRoute() {
-  const { files, addFile, removeFile, searchQuery, setSearchQuery, filteredFiles } =
+  const { files, removeFile, searchQuery, setSearchQuery, filteredFiles } =
     useFileStore();
   const { toast } = useUIStore();
   const [sortBy, setSortBy] = useState<"name" | "size" | "date">("date");
@@ -80,74 +70,17 @@ export function FilesRoute() {
     };
   }, []);
 
-  // Click-to-browse: plain FileReader on manually selected files
+  // Click-to-browse: add & index each manually selected file
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const selected = Array.from(e.target.files ?? []);
       e.target.value = "";
       if (!selected.length) return;
 
-      for (const file of selected) {
-        const fileType = getFileType(file.name);
-        const fileId = nanoid();
-
-        addFile({
-          id: fileId,
-          name: file.name,
-          path: file.name,
-          type: fileType,
-          size: file.size,
-          mimeType: file.type,
-          indexStatus: "pending",
-          tags: [],
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        });
-
-        if (fileType !== "image" && fileType !== "unknown") {
-          useFileStore.getState().updateFile(fileId, { indexStatus: "indexing" });
-          if (fileType === "pdf") {
-            file.arrayBuffer().then(async (buf) => {
-              try {
-                const text = await extractPdfText(buf);
-                await indexFileContent(fileId, text);
-              } catch {
-                useFileStore.getState().updateFile(fileId, {
-                  indexStatus: "error",
-                  error: "Failed to parse PDF",
-                });
-              }
-            }).catch(() => {
-              useFileStore.getState().updateFile(fileId, {
-                indexStatus: "error",
-                error: "Failed to read PDF",
-              });
-            });
-          } else {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const text = (ev.target?.result as string) ?? "";
-              void indexFileContent(fileId, text);
-            };
-            reader.onerror = () => {
-              useFileStore.getState().updateFile(fileId, {
-                indexStatus: "error",
-                error: "Failed to read file",
-              });
-            };
-            reader.readAsText(file);
-          }
-        } else {
-          useFileStore.getState().updateFile(fileId, {
-            indexStatus: "skipped",
-            error: fileType === "image" ? "Image content not indexed" : undefined,
-          });
-        }
-      }
-
+      for (const file of selected) addBrowserFile(file);
       toast("success", `${selected.length} file${selected.length !== 1 ? "s" : ""} added`);
     },
-    [addFile, toast],
+    [toast],
   );
 
   // Rebuild chunks + embeddings from stored text (e.g. after pulling the
@@ -276,129 +209,12 @@ export function FilesRoute() {
   );
 }
 
-async function extractPdfText(data: ArrayBuffer): Promise<string> {
-  const pdf = await getDocument({ data }).promise;
-  const pages: string[] = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .join(" ");
-    pages.push(pageText);
-  }
-  return pages.join("\n\n");
-}
-
-function chunkText(text: string, chunkSize: number, overlap: number): string[] {
-  const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  const chunks: string[] = [];
-  let current = "";
-
-  for (const para of paragraphs) {
-    if ((current + "\n\n" + para).length > chunkSize && current) {
-      chunks.push(current.trim());
-      const words = current.split(/\s+/);
-      current = words.slice(-overlap).join(" ") + "\n\n" + para;
-    } else {
-      current = current ? current + "\n\n" + para : para;
-    }
-  }
-  if (current.trim()) chunks.push(current.trim());
-  return chunks.filter((c) => c.split(/\s+/).length >= 8);
-}
-
-/**
- * Chunk extracted text, embed the chunks for semantic retrieval, and mark the
- * file indexed. Embedding failure is non-fatal — the file stays usable via
- * keyword fallback in retrieval.
- */
-async function indexFileContent(fileId: string, text: string) {
-  const { chunkSize, chunkOverlap, embeddingModel } = useSettingsStore.getState().settings.rag;
-  const chunks = chunkText(text, chunkSize, chunkOverlap);
-
-  useFileStore.getState().updateFile(fileId, {
-    size: text.length,
-    indexStatus: "indexing",
-    content: text,
-    chunks,
-    chunkCount: chunks.length,
-  });
-
-  let embeddings: string[] | undefined;
-  if (chunks.length) {
-    try {
-      embeddings = await embedChunks(chunks);
-    } catch {
-      useUIStore.getState().toast(
-        "warning",
-        "Semantic index unavailable",
-        `Couldn't embed with "${embeddingModel}" — this file will use keyword search. Pull the model from the Models tab, then re-index.`,
-      );
-    }
-  }
-
-  useFileStore.getState().updateFile(fileId, {
-    embeddings,
-    embeddingModel: embeddings ? embeddingModel : undefined,
-    indexStatus: "indexed",
-    indexedAt: Date.now(),
-  });
-}
-
 /** Add and index files dropped onto the window (real OS paths from Tauri). */
-async function indexDroppedPaths(paths: string[]) {
-  const { addFile } = useFileStore.getState();
-  const { toast } = useUIStore.getState();
-
-  let added = 0;
-  for (const filePath of paths) {
-    const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
-    const fileType = getFileType(fileName);
-    const fileId = nanoid();
-
-    addFile({
-      id: fileId,
-      name: fileName,
-      path: filePath,
-      type: fileType,
-      size: 0,
-      mimeType: "",
-      indexStatus: "pending",
-      tags: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-    added++;
-
-    if (fileType !== "image" && fileType !== "unknown") {
-      useFileStore.getState().updateFile(fileId, { indexStatus: "indexing" });
-      try {
-        let text: string;
-        if (fileType === "pdf") {
-          const bytes = await readFile(filePath);
-          text = await extractPdfText(bytes.buffer);
-        } else {
-          text = await readTextFile(filePath);
-        }
-        await indexFileContent(fileId, text);
-      } catch {
-        useFileStore.getState().updateFile(fileId, {
-          indexStatus: "error",
-          error: "Permission denied — try the browse button instead",
-        });
-      }
-    } else {
-      useFileStore.getState().updateFile(fileId, {
-        indexStatus: "skipped",
-        error: fileType === "image" ? "Image content not indexed" : undefined,
-      });
-    }
-  }
-
-  if (added > 0) {
-    toast("success", `${added} file${added !== 1 ? "s" : ""} added`);
-  }
+function indexDroppedPaths(paths: string[]) {
+  for (const filePath of paths) addPathFile(filePath);
+  useUIStore
+    .getState()
+    .toast("success", `${paths.length} file${paths.length !== 1 ? "s" : ""} added`);
 }
 
 function FileCard({

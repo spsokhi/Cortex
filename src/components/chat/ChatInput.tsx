@@ -1,11 +1,18 @@
 import { useState, useCallback, useRef, useEffect, type KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { Send, Square, Paperclip, Mic, MicOff, Database, Wrench } from "lucide-react";
+import { Send, Square, Paperclip, Mic, MicOff, Database, Wrench, FileText, Loader2, AlertCircle, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useUIStore } from "@/stores/uiStore";
 import { useVoice } from "@/hooks/useVoice";
 import { PromptLibrary } from "@/components/chat/PromptLibrary";
 import { cn } from "@/utils/cn";
+
+const ATTACH_ACCEPT = ".pdf,.txt,.md,.markdown,.py,.js,.ts,.tsx,.jsx,.json,.csv,.html,.css,.yaml,.yml,.sh,.rs,.go,.java,.c,.cpp";
+
+export interface Attachment {
+  id: string;
+  name: string;
+  status: "indexing" | "ready" | "error";
+}
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -19,6 +26,10 @@ interface ChatInputProps {
   placeholder?: string;
   initialValue?: string;
   onInputChange?: (value: string) => void;
+  /** Documents scoped to this chat (owned by ChatRoute) */
+  attachments?: Attachment[];
+  onAttachFiles?: (files: FileList | null) => void;
+  onRemoveAttachment?: (id: string) => void;
 }
 
 export function ChatInput({
@@ -33,6 +44,9 @@ export function ChatInput({
   placeholder = "Ask anything… (Shift+Enter for new line)",
   initialValue = "",
   onInputChange,
+  attachments = [],
+  onAttachFiles,
+  onRemoveAttachment,
 }: ChatInputProps) {
   const [value, setValue] = useState(initialValue);
 
@@ -41,7 +55,7 @@ export function ChatInput({
   }, [initialValue]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { toast } = useUIStore();
+  const attachInputRef = useRef<HTMLInputElement>(null);
   const { recordingState, interimText, startRecording, stopRecording } = useVoice();
   const isRecording = recordingState === "recording";
 
@@ -117,6 +131,41 @@ export function ChatInput({
             : "border-cortex-border focus-within:border-cortex-accent/50 focus-within:shadow-[0_0_0_1px_rgb(var(--cortex-accent)/0.2)]",
         )}
       >
+        {/* Attachment chips */}
+        <AnimatePresence initial={false}>
+          {attachments.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex flex-wrap gap-1.5 px-3 pt-2.5 overflow-hidden"
+            >
+              {attachments.map((a) => (
+                <span
+                  key={a.id}
+                  className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg bg-cortex-surface-3 border border-cortex-border text-2xs text-cortex-text-muted max-w-[220px]"
+                >
+                  {a.status === "indexing" ? (
+                    <Loader2 size={11} className="animate-spin text-cortex-info flex-shrink-0" />
+                  ) : a.status === "ready" ? (
+                    <FileText size={11} className="text-cortex-success flex-shrink-0" />
+                  ) : (
+                    <AlertCircle size={11} className="text-cortex-error flex-shrink-0" />
+                  )}
+                  <span className="truncate">{a.name}</span>
+                  <button
+                    onClick={() => onRemoveAttachment?.(a.id)}
+                    className="p-0.5 rounded hover:bg-cortex-surface hover:text-cortex-text transition-colors flex-shrink-0"
+                    title="Remove from this chat"
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Textarea */}
         <TextareaAutosize
           ref={textareaRef}
@@ -137,10 +186,18 @@ export function ChatInput({
         <div className="flex items-center justify-between px-3 pb-2.5">
           <div className="flex items-center gap-1">
             {/* File attachment */}
+            <input
+              ref={attachInputRef}
+              type="file"
+              multiple
+              accept={ATTACH_ACCEPT}
+              className="hidden"
+              onChange={(e) => { onAttachFiles?.(e.target.files); e.target.value = ""; }}
+            />
             <ToolbarButton
               icon={<Paperclip size={14} />}
-              label="Attach file"
-              onClick={() => toast("info", "Coming soon", "File drag & drop is available in the Files tab")}
+              label="Attach a document (indexes it and turns on RAG)"
+              onClick={() => attachInputRef.current?.click()}
             />
 
             {/* RAG toggle */}

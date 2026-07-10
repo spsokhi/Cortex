@@ -13,8 +13,11 @@ import { useChatStore } from "@/stores/chatStore";
 import { useModelStore } from "@/stores/modelStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
+import { useFileStore } from "@/stores/fileStore";
 import { usePersonaStore } from "@/stores/personaStore";
 import { stripThinking } from "@/services/thinking";
+import { addBrowserFile, isIndexableType } from "@/services/indexing";
+import { getFileType } from "@/types/files";
 import { PERSONAS } from "@/data/personas";
 import type { Persona } from "@/data/personas";
 import { cn } from "@/utils/cn";
@@ -34,16 +37,25 @@ export function ChatRoute() {
   const userScrolledUpRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
-  // Flags for a not-yet-created conversation (welcome screen); once a
-  // conversation exists the toggles live on it so they survive switching chats.
+  // Draft state for a not-yet-created conversation (welcome screen); once a
+  // conversation exists these live on it so they survive switching chats.
   const [draftFlags, setDraftFlags] = useState({ rag: false, tools: false });
+  const [draftContextFiles, setDraftContextFiles] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState("");
 
-  const { activeConversation, loadConversation, createConversation, setConversationFlags, conversations } =
-    useChatStore();
+  const {
+    activeConversation,
+    loadConversation,
+    createConversation,
+    setConversationFlags,
+    addContextFiles,
+    removeContextFile,
+    conversations,
+  } = useChatStore();
   const { activeModelId } = useModelStore();
   const { settings } = useSettingsStore();
   const { toast } = useUIStore();
+  const files = useFileStore((s) => s.files);
   const { sendMessage, stopGeneration, regenerate, editAndResend, isGenerating } = useChat();
   const activePersonaId = usePersonaStore((s) => s.activePersonaId);
   const customPersonas = usePersonaStore((s) => s.customPersonas);
@@ -66,6 +78,56 @@ export function ChatRoute() {
     if (conv) setConversationFlags(conv.id, { toolsEnabled: !(conv.toolsEnabled ?? false) });
     else setDraftFlags((f) => ({ ...f, tools: !f.tools }));
   }, [setConversationFlags]);
+
+  // Attached documents scope RAG to just those files. Source of truth is the
+  // conversation (or draft state before one exists); chips derive from the
+  // file store so their indexing status stays live.
+  const contextFileIds = activeConversation ? (activeConversation.contextFileIds ?? []) : draftContextFiles;
+  const attachments = contextFileIds.flatMap((fileId) => {
+    const file = files.find((f) => f.id === fileId);
+    if (!file) return [];
+    const status: "indexing" | "ready" | "error" =
+      file.indexStatus === "indexed" ? "ready" :
+      file.indexStatus === "error" || file.indexStatus === "skipped" ? "error" :
+      "indexing";
+    return [{ id: fileId, name: file.name, status }];
+  });
+
+  const handleAttach = useCallback(
+    (fileList: FileList | null) => {
+      const picked = Array.from(fileList ?? []);
+      if (!picked.length) return;
+
+      const newIds: string[] = [];
+      for (const file of picked) {
+        if (!isIndexableType(getFileType(file.name))) {
+          toast("warning", "Can't attach this file", `${file.name} — attach text, Markdown, code, or a PDF.`);
+          continue;
+        }
+        newIds.push(addBrowserFile(file).fileId);
+      }
+      if (!newIds.length) return;
+
+      const conv = useChatStore.getState().activeConversation;
+      if (conv) {
+        addContextFiles(conv.id, newIds);
+        if (!(conv.ragEnabled ?? false)) setConversationFlags(conv.id, { ragEnabled: true });
+      } else {
+        setDraftContextFiles((prev) => [...new Set([...prev, ...newIds])]);
+        setDraftFlags((f) => ({ ...f, rag: true }));
+      }
+    },
+    [toast, addContextFiles, setConversationFlags],
+  );
+
+  const handleRemoveAttachment = useCallback(
+    (fileId: string) => {
+      const conv = useChatStore.getState().activeConversation;
+      if (conv) removeContextFile(conv.id, fileId);
+      else setDraftContextFiles((prev) => prev.filter((id) => id !== fileId));
+    },
+    [removeContextFile],
+  );
 
   // Load conversation by ID from persisted store
   useEffect(() => {
@@ -157,10 +219,13 @@ export function ChatRoute() {
       if (draftFlags.rag || draftFlags.tools) {
         setConversationFlags(conv.id, { ragEnabled: draftFlags.rag, toolsEnabled: draftFlags.tools });
       }
+      if (draftContextFiles.length) addContextFiles(conv.id, draftContextFiles);
+      setDraftContextFiles([]);
+      setDraftFlags({ rag: false, tools: false });
       navigate(`/chat/${conv.id}`);
     }
     await sendMessage(message, ragEnabled, toolsEnabled);
-  }, [activeConversation, activeModelId, activePersona, createConversation, setConversationFlags, draftFlags, navigate, sendMessage, ragEnabled, toolsEnabled]);
+  }, [activeConversation, activeModelId, activePersona, createConversation, setConversationFlags, addContextFiles, draftFlags, draftContextFiles, navigate, sendMessage, ragEnabled, toolsEnabled]);
 
   const messages = activeConversation?.messages ?? [];
   const isEmpty = messages.length === 0;
@@ -241,10 +306,19 @@ export function ChatRoute() {
               exit={{ opacity: 0, y: 6 }}
               transition={{ duration: 0.15 }}
               onClick={jumpToBottom}
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cortex-surface-2 border border-cortex-border shadow-lg text-xs text-cortex-text-muted hover:text-cortex-text hover:border-cortex-accent/40 transition-colors z-10"
+              className={cn(
+                "absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cortex-surface-2 border shadow-lg text-xs transition-colors z-10",
+                isGenerating
+                  ? "border-cortex-accent/50 text-cortex-accent"
+                  : "border-cortex-border text-cortex-text-muted hover:text-cortex-text hover:border-cortex-accent/40",
+              )}
             >
-              <ChevronDown size={13} />
-              Scroll to bottom
+              {isGenerating ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-cortex-accent animate-pulse" />
+              ) : (
+                <ChevronDown size={13} />
+              )}
+              {isGenerating ? "New content" : "Scroll to bottom"}
             </motion.button>
           )}
         </AnimatePresence>
@@ -262,6 +336,9 @@ export function ChatRoute() {
           onToggleTools={toggleTools}
           initialValue={inputValue}
           onInputChange={setInputValue}
+          attachments={attachments}
+          onAttachFiles={handleAttach}
+          onRemoveAttachment={handleRemoveAttachment}
         />
       </div>
     </motion.div>

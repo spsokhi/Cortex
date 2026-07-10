@@ -273,7 +273,7 @@ export function useChat() {
 
       const assistantMsgId = insertAssistantPlaceholder(conversation.id);
 
-      const rag = ragEnabled ? await retrieveRag(content) : EMPTY_RAG;
+      const rag = ragEnabled ? await retrieveRag(content, conversation.contextFileIds) : EMPTY_RAG;
       if (ragEnabled) {
         if (rag.context) {
           toast("info", "RAG active", `Using ${rag.citations.length} passage${rag.citations.length !== 1 ? "s" : ""} from your documents.`);
@@ -370,7 +370,7 @@ export function useChat() {
       removeMessage(lastAssistant.id);
       const newId = insertAssistantPlaceholder(conv.id);
 
-      const rag = ragEnabled ? await retrieveRag(lastUser.content) : EMPTY_RAG;
+      const rag = ragEnabled ? await retrieveRag(lastUser.content, conv.contextFileIds) : EMPTY_RAG;
       if (rag.citations.length) updateMessage(newId, { citations: rag.citations });
 
       const systemContent = [conv.systemPrompt, rag.context].filter(Boolean).join("\n\n");

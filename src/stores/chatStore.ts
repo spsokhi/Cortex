@@ -22,6 +22,8 @@ interface ChatState {
   deleteConversation: (id: string) => void;
   pinConversation: (id: string, pinned: boolean) => void;
   setConversationFlags: (id: string, flags: { ragEnabled?: boolean; toolsEnabled?: boolean }) => void;
+  addContextFiles: (id: string, fileIds: string[]) => void;
+  removeContextFile: (id: string, fileId: string) => void;
   addMessage: (conversationId: string, role: MessageRole, content: string) => Message;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   removeMessage: (messageId: string) => void;
@@ -138,6 +140,32 @@ export const useChatStore = create<ChatState>()(
                 : state.activeConversation,
             savedConversations: state.savedConversations[id]
               ? { ...state.savedConversations, [id]: { ...state.savedConversations[id], ...flags } }
+              : state.savedConversations,
+          }));
+        },
+
+        addContextFiles: (id, fileIds) => {
+          const patch = (existing: string[] | undefined) => [...new Set([...(existing ?? []), ...fileIds])];
+          set((state) => ({
+            activeConversation:
+              state.activeConversation?.id === id
+                ? { ...state.activeConversation, contextFileIds: patch(state.activeConversation.contextFileIds) }
+                : state.activeConversation,
+            savedConversations: state.savedConversations[id]
+              ? { ...state.savedConversations, [id]: { ...state.savedConversations[id], contextFileIds: patch(state.savedConversations[id].contextFileIds) } }
+              : state.savedConversations,
+          }));
+        },
+
+        removeContextFile: (id, fileId) => {
+          const patch = (existing: string[] | undefined) => (existing ?? []).filter((f) => f !== fileId);
+          set((state) => ({
+            activeConversation:
+              state.activeConversation?.id === id
+                ? { ...state.activeConversation, contextFileIds: patch(state.activeConversation.contextFileIds) }
+                : state.activeConversation,
+            savedConversations: state.savedConversations[id]
+              ? { ...state.savedConversations, [id]: { ...state.savedConversations[id], contextFileIds: patch(state.savedConversations[id].contextFileIds) } }
               : state.savedConversations,
           }));
         },

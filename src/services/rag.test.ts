@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { encodeEmbedding, decodeEmbedding, embedChunks, retrieveRag, EMPTY_RAG } from "./rag";
 import { useFileStore } from "@/stores/fileStore";
+import type { IndexedFile } from "@/types/files";
 
 describe("embedding codec", () => {
   it("round-trips a vector as an approximately unit-length copy pointing the same way", () => {
@@ -25,6 +26,37 @@ describe("embedding codec", () => {
   it("handles the zero vector without NaN", () => {
     const decoded = decodeEmbedding(encodeEmbedding(new Array<number>(16).fill(0)));
     for (const x of decoded) expect(Number.isNaN(x)).toBe(false);
+  });
+});
+
+describe("retrieval scoping (keyword fallback, no Ollama)", () => {
+  const base = { type: "md" as const, size: 1, indexStatus: "indexed" as const, tags: [], createdAt: 0, updatedAt: 0 };
+  const fileA: IndexedFile = {
+    ...base, id: "a", name: "rust.md", path: "rust.md",
+    chunks: ["This project uses the borrow checker for memory safety."],
+  };
+  const fileB: IndexedFile = {
+    ...base, id: "b", name: "baking.md", path: "baking.md",
+    chunks: ["This project explains kneading dough and baking bread."],
+  };
+
+  it("searches every indexed file when no scope is given", async () => {
+    useFileStore.setState({ files: [fileA, fileB] });
+    const names = new Set((await retrieveRag("project")).citations.map((c) => c.fileName));
+    expect(names.has("rust.md")).toBe(true);
+    expect(names.has("baking.md")).toBe(true);
+  });
+
+  it("restricts retrieval to the attached file ids", async () => {
+    useFileStore.setState({ files: [fileA, fileB] });
+    const result = await retrieveRag("project", ["a"]);
+    expect(result.citations.length).toBeGreaterThan(0);
+    expect(result.citations.every((c) => c.fileName === "rust.md")).toBe(true);
+  });
+
+  it("returns nothing when the scoped files aren't indexed yet", async () => {
+    useFileStore.setState({ files: [fileA, fileB] });
+    expect(await retrieveRag("project", ["not-indexed-yet"])).toEqual(EMPTY_RAG);
   });
 });
 

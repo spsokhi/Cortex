@@ -91,14 +91,24 @@ export async function embedChunks(chunks: string[]): Promise<string[]> {
 }
 
 /**
- * Retrieve the most relevant chunks across all indexed files and build the
- * context block to inject into the system prompt.
+ * Retrieve the most relevant chunks and build the context block to inject
+ * into the system prompt.
+ *
+ * When `fileIds` is given and non-empty, retrieval is scoped strictly to
+ * those files (documents attached to the conversation) — nothing else is
+ * searched, so "chat with this document" really means only that document.
+ * Omit it to search every indexed file.
  */
-export async function retrieveRag(query: string): Promise<RagResult> {
+export async function retrieveRag(query: string, fileIds?: string[]): Promise<RagResult> {
   const { embeddingModel, topK, minScore } = useSettingsStore.getState().settings.rag;
-  const files = useFileStore
+  let files = useFileStore
     .getState()
     .files.filter((f) => f.indexStatus === "indexed" && f.chunks?.length);
+
+  if (fileIds && fileIds.length) {
+    const scope = new Set(fileIds);
+    files = files.filter((f) => scope.has(f.id));
+  }
 
   if (!files.length) return EMPTY_RAG;
 

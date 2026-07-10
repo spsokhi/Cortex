@@ -45,6 +45,8 @@ export interface Conversation {
   /** RAG / tool-calling toggles live on the conversation so they survive switching chats */
   ragEnabled?: boolean;
   toolsEnabled?: boolean;
+  /** Documents attached to this chat; when set, RAG retrieval is scoped to just these files */
+  contextFileIds?: string[];
   createdAt: number;
   updatedAt: number;
 }
