@@ -3,14 +3,17 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Copy, Check, Bot, User, AlertCircle, Brain, ChevronDown, ChevronUp, RotateCcw, AlignLeft, Lightbulb, ArrowRight, StickyNote, Pencil, X, Wrench } from "lucide-react";
-import { motion } from "framer-motion";
+import { Copy, Check, Bot, User, AlertCircle, Brain, ChevronDown, ChevronUp, Cpu, RotateCcw, AlignLeft, Lightbulb, ArrowRight, StickyNote, Pencil, Square, Volume2, X, Wrench } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { Message } from "@/types/chat";
 import { useNotesStore } from "@/stores/notesStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useChatStore } from "@/stores/chatStore";
+import { useModelStore } from "@/stores/modelStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useIsLightTheme } from "@/hooks/useTheme";
 import { splitThinking, formatThinkingDuration } from "@/services/thinking";
+import { toggleReadAloud, isTtsSupported } from "@/services/tts";
 import { cn } from "@/utils/cn";
 import { formatAbsoluteTime } from "@/utils/format";
 
@@ -19,6 +22,7 @@ interface ChatMessageProps {
   showTimestamp?: boolean;
   isLast?: boolean;
   onRegenerate?: () => void;
+  onRegenerateWith?: (modelId: string) => void;
   onQuickAction?: (prompt: string) => void;
   onEdit?: (messageId: string, newContent: string) => void;
 }
@@ -28,12 +32,15 @@ export const ChatMessage = memo(function ChatMessage({
   showTimestamp = false,
   isLast = false,
   onRegenerate,
+  onRegenerateWith,
   onQuickAction,
   onEdit,
 }: ChatMessageProps) {
   const isUser = message.role === "user";
   const isStreaming = message.status === "streaming";
   const isError = message.status === "error";
+  const compact = useSettingsStore((s) => s.settings.appearance.compactMode ?? false);
+  const showTokenCount = useSettingsStore((s) => s.settings.appearance.showTokenCount ?? false);
   // Reasoning models wrap chain-of-thought in <think>…</think> — split it
   // out so it renders as a collapsible block instead of answer text.
   const { thinking, answer, thinkingOpen } = isUser
@@ -72,7 +79,8 @@ export const ChatMessage = memo(function ChatMessage({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
       className={cn(
-        "group flex gap-3 px-4 py-4 hover:bg-cortex-surface-2/30 transition-colors",
+        "group flex hover:bg-cortex-surface-2/30 transition-colors",
+        compact ? "gap-2.5 px-3 py-2" : "gap-3 px-4 py-4",
         isUser && "flex-row-reverse",
       )}
     >
@@ -111,7 +119,8 @@ export const ChatMessage = memo(function ChatMessage({
         {/* Message bubble */}
         <div
           className={cn(
-            "relative rounded-xl px-4 py-3 text-sm selectable",
+            "relative rounded-xl text-sm selectable",
+            compact ? "px-3 py-1.5" : "px-4 py-3",
             isUser
               ? "bg-cortex-user-bg border border-cortex-user-border text-cortex-text"
               : "bg-transparent text-cortex-text",
@@ -209,15 +218,18 @@ export const ChatMessage = memo(function ChatMessage({
 
         {/* Action row */}
         <div className="flex items-center gap-3 flex-wrap">
-          {message.tokenCount && !isStreaming && (
+          {showTokenCount && !!message.tokenCount && !isStreaming && (
             <span className="text-2xs text-cortex-text-dim">
               {message.tokenCount.toLocaleString()} tokens
             </span>
           )}
-          {message.tokensPerSec && !isStreaming && (
+          {showTokenCount && !!message.tokensPerSec && !isStreaming && (
             <span className="text-2xs text-cortex-text-dim">
               {message.tokensPerSec.toFixed(1)} tok/s
             </span>
+          )}
+          {!isUser && !isStreaming && !!answer && (
+            <ReadAloudButton messageId={message.id} text={answer} />
           )}
           {!isUser && !isStreaming && message.content && (
             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -253,14 +265,11 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           )}
           {isLast && !isUser && !isStreaming && onRegenerate && (
-            <button
-              onClick={onRegenerate}
-              className="flex items-center gap-1 text-2xs text-cortex-text-dim hover:text-cortex-accent transition-colors opacity-0 group-hover:opacity-100"
-              title="Regenerate response"
-            >
-              <RotateCcw size={11} />
-              Regenerate
-            </button>
+            <RegenerateControl
+              currentModelId={message.modelId}
+              onRegenerate={onRegenerate}
+              onRegenerateWith={onRegenerateWith}
+            />
           )}
         </div>
       </div>
@@ -441,6 +450,121 @@ function CopyButton({ text }: { text: string }) {
     >
       {copied ? <Check size={11} className="text-cortex-success" /> : <Copy size={11} />}
     </button>
+  );
+}
+
+/** Speaker toggle — only rendered when TTS is enabled in Settings → Voice. */
+function ReadAloudButton({ messageId, text }: { messageId: string; text: string }) {
+  const ttsEnabled = useSettingsStore((s) => s.settings.voice.ttsEnabled ?? false);
+  const isSpeaking = useUIStore((s) => s.speakingMessageId === messageId);
+
+  if (!ttsEnabled || !isTtsSupported()) return null;
+
+  return (
+    <button
+      onClick={() => toggleReadAloud(messageId, text)}
+      title={isSpeaking ? "Stop reading" : "Read aloud (local system voice)"}
+      className={cn(
+        "flex items-center gap-1 text-2xs px-1.5 py-0.5 rounded-md transition-all",
+        isSpeaking
+          ? "text-cortex-accent bg-cortex-accent/10 opacity-100"
+          : "text-cortex-text-dim hover:text-cortex-accent hover:bg-cortex-surface-3 opacity-0 group-hover:opacity-100",
+      )}
+    >
+      {isSpeaking ? <Square size={10} fill="currentColor" /> : <Volume2 size={11} />}
+      {isSpeaking ? "Stop" : "Read aloud"}
+    </button>
+  );
+}
+
+/**
+ * Regenerate, with a dropdown to re-answer using a different installed
+ * model — the pick applies to this regeneration only and doesn't change
+ * the app's active model.
+ */
+function RegenerateControl({
+  currentModelId,
+  onRegenerate,
+  onRegenerateWith,
+}: {
+  currentModelId?: string;
+  onRegenerate: () => void;
+  onRegenerateWith?: (modelId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const models = useModelStore((s) => s.models);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const canPickModel = !!onRegenerateWith && models.length > 0;
+
+  return (
+    <div ref={ref} className={cn("relative flex items-center", !open && "opacity-0 group-hover:opacity-100")}>
+      <button
+        onClick={onRegenerate}
+        className={cn(
+          "flex items-center gap-1 text-2xs text-cortex-text-dim hover:text-cortex-accent transition-colors",
+          canPickModel && "pr-0.5",
+        )}
+        title="Regenerate response"
+      >
+        <RotateCcw size={11} />
+        Regenerate
+      </button>
+      {canPickModel && (
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="p-0.5 rounded text-cortex-text-dim hover:text-cortex-accent transition-colors"
+          title="Regenerate with another model"
+        >
+          <ChevronDown size={11} className={cn("transition-transform", open && "rotate-180")} />
+        </button>
+      )}
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 4 }}
+            transition={{ duration: 0.12 }}
+            className="absolute bottom-full left-0 mb-1 z-30 w-52 bg-cortex-surface-2 border border-cortex-border rounded-xl shadow-cortex-lg overflow-hidden"
+          >
+            <p className="px-3 pt-2 pb-1 text-2xs uppercase tracking-wider text-cortex-text-dim">
+              Regenerate with
+            </p>
+            <div className="max-h-44 overflow-y-auto pb-1">
+              {models.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => { setOpen(false); onRegenerateWith?.(m.id); }}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors",
+                    m.id === currentModelId
+                      ? "text-cortex-accent bg-cortex-accent/10"
+                      : "text-cortex-text hover:bg-cortex-surface-3",
+                  )}
+                >
+                  <Cpu size={11} className="flex-shrink-0" />
+                  <span className="font-mono truncate">{m.name}</span>
+                  {m.id === currentModelId && (
+                    <span className="ml-auto text-2xs text-cortex-text-dim shrink-0">current</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

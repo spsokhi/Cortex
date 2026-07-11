@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { BrainCircuit, Sparkles, FileText, Code2, Search as SearchIcon, Download, ChevronDown } from "lucide-react";
+import { BrainCircuit, Sparkles, FileText, Code2, Search as SearchIcon, Download, ChevronDown, ChevronUp, X } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -16,6 +16,7 @@ import { useUIStore } from "@/stores/uiStore";
 import { useFileStore } from "@/stores/fileStore";
 import { usePersonaStore } from "@/stores/personaStore";
 import { stripThinking } from "@/services/thinking";
+import { stopSpeaking } from "@/services/tts";
 import { addBrowserFile, isIndexableType } from "@/services/indexing";
 import { getFileType } from "@/types/files";
 import { PERSONAS } from "@/data/personas";
@@ -37,6 +38,12 @@ export function ChatRoute() {
   const userScrolledUpRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  // In-chat find (Ctrl+F) — matches highlighted via the CSS Custom Highlight API
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [findIndex, setFindIndex] = useState(0);
+  const [findCount, setFindCount] = useState(0);
+  const findRangesRef = useRef<Range[]>([]);
   // Draft state for a not-yet-created conversation (welcome screen); once a
   // conversation exists these live on it so they survive switching chats.
   const [draftFlags, setDraftFlags] = useState({ rag: false, tools: false });
@@ -129,7 +136,8 @@ export function ChatRoute() {
     [removeContextFile],
   );
 
-  // Load conversation by ID from persisted store
+  // Load conversation by ID from persisted store. Also re-runs when the
+  // conversation list changes so a chat deleted elsewhere navigates home.
   useEffect(() => {
     if (!id) return;
     if (activeConversation?.id === id) return;
@@ -138,7 +146,7 @@ export function ChatRoute() {
       const found = conversations.find((c) => c.id === id);
       if (!found) navigate("/chat");
     }
-  }, [id]);
+  }, [id, activeConversation?.id, conversations, loadConversation, navigate]);
 
   // Pre-fill input from Code tab navigation
   useEffect(() => {
@@ -148,6 +156,78 @@ export function ChatRoute() {
       window.history.replaceState({}, ""); // clear state so it doesn't re-apply
     }
   }, [location.state]);
+
+  // Stop read-aloud when leaving or switching conversations
+  useEffect(() => stopSpeaking, [activeConversation?.id]);
+
+  // Ctrl+F opens in-chat find (overrides the webview's native find)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setFindOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // New query starts from the first match
+  useEffect(() => setFindIndex(0), [findQuery]);
+
+  // Collect match ranges over the rendered messages and register highlights.
+  // Runs post-render, so it sees the DOM the current messages produced.
+  useEffect(() => {
+    if (!("highlights" in CSS)) return;
+    CSS.highlights.delete("chat-find");
+    CSS.highlights.delete("chat-find-active");
+    findRangesRef.current = [];
+
+    const q = findQuery.trim().toLowerCase();
+    const container = scrollContainerRef.current;
+    if (!findOpen || !q || !container) {
+      setFindCount(0);
+      return;
+    }
+
+    const ranges: Range[] = [];
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const text = (node.textContent ?? "").toLowerCase();
+      let idx = text.indexOf(q);
+      while (idx !== -1) {
+        const range = new Range();
+        range.setStart(node, idx);
+        range.setEnd(node, idx + q.length);
+        ranges.push(range);
+        idx = text.indexOf(q, idx + q.length);
+      }
+    }
+
+    findRangesRef.current = ranges;
+    setFindCount(ranges.length);
+    setFindIndex((i) => (ranges.length ? Math.min(i, ranges.length - 1) : 0));
+    if (ranges.length) CSS.highlights.set("chat-find", new Highlight(...ranges));
+  }, [findOpen, findQuery, activeConversation?.messages]);
+
+  // Emphasize + scroll to the active match (declared after the collector so it runs second)
+  useEffect(() => {
+    if (!("highlights" in CSS)) return;
+    CSS.highlights.delete("chat-find-active");
+    const range = findRangesRef.current[findIndex];
+    if (!findOpen || !range) return;
+    CSS.highlights.set("chat-find-active", new Highlight(range));
+    range.startContainer.parentElement?.scrollIntoView({ block: "center" });
+  }, [findOpen, findIndex, findCount, findQuery]);
+
+  // Drop highlight registrations when the route unmounts
+  useEffect(() => () => {
+    if ("highlights" in CSS) {
+      CSS.highlights.delete("chat-find");
+      CSS.highlights.delete("chat-find-active");
+    }
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     if (userScrolledUpRef.current) return;
@@ -178,12 +258,12 @@ export function ChatRoute() {
   useEffect(() => {
     userScrolledUpRef.current = false;
     scrollToBottom();
-  }, [activeConversation?.messages.length]);
+  }, [activeConversation?.messages.length, scrollToBottom]);
 
   // Follow streaming content without queuing overlapping animations
   useEffect(() => {
     scrollToBottom();
-  }, [activeConversation?.messages]);
+  }, [activeConversation?.messages, scrollToBottom]);
 
   const handleExport = async () => {
     if (!activeConversation) return;
@@ -267,6 +347,52 @@ export function ChatRoute() {
 
       {/* Messages area */}
       <div className="relative flex-1 min-h-0">
+        {/* In-chat find bar */}
+        {findOpen && (
+          <div className="absolute top-3 right-4 z-20 flex items-center gap-1 pl-2.5 pr-1 py-1.5 rounded-xl bg-cortex-surface-2 border border-cortex-border shadow-cortex-lg">
+            <SearchIcon size={12} className="text-cortex-text-dim flex-shrink-0" />
+            <input
+              autoFocus
+              value={findQuery}
+              onChange={(e) => setFindQuery(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter" && findCount > 0) {
+                  setFindIndex((i) => (e.shiftKey ? (i - 1 + findCount) % findCount : (i + 1) % findCount));
+                }
+                if (e.key === "Escape") setFindOpen(false);
+              }}
+              placeholder="Find in chat…"
+              className="w-36 bg-transparent outline-none text-xs text-cortex-text placeholder-cortex-text-dim"
+            />
+            <span className="text-2xs font-mono tabular-nums text-cortex-text-dim px-1">
+              {findCount ? `${findIndex + 1}/${findCount}` : "0/0"}
+            </span>
+            <button
+              onClick={() => setFindIndex((i) => (i - 1 + findCount) % findCount)}
+              disabled={!findCount}
+              className="p-1 rounded text-cortex-text-dim hover:text-cortex-text disabled:opacity-40 transition-colors"
+              title="Previous match (Shift+Enter)"
+            >
+              <ChevronUp size={12} />
+            </button>
+            <button
+              onClick={() => setFindIndex((i) => (i + 1) % findCount)}
+              disabled={!findCount}
+              className="p-1 rounded text-cortex-text-dim hover:text-cortex-text disabled:opacity-40 transition-colors"
+              title="Next match (Enter)"
+            >
+              <ChevronDown size={12} />
+            </button>
+            <button
+              onClick={() => setFindOpen(false)}
+              className="p-1 rounded text-cortex-text-dim hover:text-cortex-text transition-colors"
+              title="Close (Esc)"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
@@ -288,6 +414,7 @@ export function ChatRoute() {
                   showTimestamp={settings.appearance.showTimestamps}
                   isLast={i === messages.length - 1}
                   onRegenerate={() => void regenerate(ragEnabled, toolsEnabled)}
+                  onRegenerateWith={(modelId) => void regenerate(ragEnabled, toolsEnabled, modelId)}
                   onQuickAction={(prompt) => void handleSend(prompt)}
                   onEdit={(id, newContent) => void editAndResend(id, newContent, ragEnabled, toolsEnabled)}
                 />

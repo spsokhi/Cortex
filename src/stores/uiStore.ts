@@ -12,6 +12,8 @@ interface UIState {
   notifications: NotificationPayload[];
   commandPaletteOpen: boolean;
   shortcutsHelpOpen: boolean;
+  /** Message currently being read aloud via TTS, if any */
+  speakingMessageId: string | null;
   searchOpen: boolean;
   settingsOpen: boolean;
   modelManagerOpen: boolean;
@@ -28,6 +30,7 @@ interface UIState {
   clearNotifications: () => void;
   setCommandPalette: (open: boolean) => void;
   setShortcutsHelp: (open: boolean) => void;
+  setSpeakingMessage: (id: string | null) => void;
   setSearchOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setModelManagerOpen: (open: boolean) => void;
@@ -45,6 +48,7 @@ export const useUIStore = create<UIState>()((set) => ({
   notifications: [],
   commandPaletteOpen: false,
   shortcutsHelpOpen: false,
+  speakingMessageId: null,
   searchOpen: false,
   settingsOpen: false,
   modelManagerOpen: false,
@@ -85,6 +89,7 @@ export const useUIStore = create<UIState>()((set) => ({
 
   setCommandPalette: (open) => set({ commandPaletteOpen: open }),
   setShortcutsHelp: (open) => set({ shortcutsHelpOpen: open }),
+  setSpeakingMessage: (id) => set({ speakingMessageId: id }),
   setSearchOpen: (open) => set({ searchOpen: open }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setModelManagerOpen: (open) => set({ modelManagerOpen: open }),

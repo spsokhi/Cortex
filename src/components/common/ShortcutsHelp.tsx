@@ -5,6 +5,7 @@ import { useUIStore } from "@/stores/uiStore";
 const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ["Ctrl", "K"], label: "Search & command palette" },
   { keys: ["Ctrl", "N"], label: "New chat" },
+  { keys: ["Ctrl", "F"], label: "Find in conversation" },
   { keys: ["Ctrl", "B"], label: "Toggle sidebar" },
   { keys: ["Enter"], label: "Send message" },
   { keys: ["Shift", "Enter"], label: "New line in message" },

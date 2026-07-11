@@ -31,7 +31,7 @@ export function truncate(str: string, maxLen: number): string {
 }
 
 export function formatModelSize(paramSize: string): string {
-  return paramSize.replace(/(\d+)([BbMm])/, (_, n, unit) => `${n}${unit.toUpperCase()}`);
+  return paramSize.replace(/(\d+)([BbMm])/, (_match, n: string, unit: string) => `${n}${unit.toUpperCase()}`);
 }
 
 export function cn(...classes: Array<string | undefined | null | false>): string {

@@ -2,6 +2,7 @@
   "name": "cortex",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Privacy-first local AI assistant — your data never leaves your device",
   "keywords": [
     "ai",
@@ -20,8 +21,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "lint:fix": "eslint src --ext ts,tsx --fix",
+    "lint": "eslint \"./src/**/*.ts\" \"./src/**/*.tsx\" --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint \"./src/**/*.ts\" \"./src/**/*.tsx\" --fix",
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "service:whisper": "python services/whisper/main.py",

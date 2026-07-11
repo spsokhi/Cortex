@@ -43,11 +43,11 @@ export function ModelManager() {
       )
     : POPULAR_MODELS;
 
-  const handleDownload = async (modelName: string) => {
+  const handleDownload = (modelName: string) => {
     toast("info", `Downloading ${modelName}`, "This may take several minutes…");
   };
 
-  const handleDelete = async (modelId: string) => {
+  const handleDelete = (modelId: string) => {
     toast("warning", `Deleted ${modelId}`);
   };
 
@@ -124,7 +124,7 @@ export function ModelManager() {
                   model={model}
                   isActive={activeModelId === model.id}
                   onSelect={() => setActiveModel(model.id)}
-                  onDelete={() => void handleDelete(model.id)}
+                  onDelete={() => handleDelete(model.id)}
                 />
               ))
             )}
@@ -140,7 +140,7 @@ export function ModelManager() {
                 className="cortex-input flex-1 text-sm"
               />
               <button
-                onClick={() => { void handleDownload(customModel); setCustomModel(""); }}
+                onClick={() => { handleDownload(customModel); setCustomModel(""); }}
                 disabled={!customModel.trim()}
                 className="cortex-button-primary text-sm px-3 py-2 whitespace-nowrap disabled:opacity-50"
               >
@@ -180,7 +180,7 @@ export function ModelManager() {
                   size={m.size}
                   tags={m.tags}
                   installed={models.some((im) => im.id === m.name)}
-                  onDownload={() => void handleDownload(m.name)}
+                  onDownload={() => handleDownload(m.name)}
                 />
               ))}
             </div>

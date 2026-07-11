@@ -56,7 +56,7 @@ export function useChat() {
 
   /** Insert a streaming assistant placeholder into the active conversation. */
   const insertAssistantPlaceholder = useCallback(
-    (conversationId: string) => {
+    (conversationId: string, modelId: string = activeModelId) => {
       const id = nanoid();
       useChatStore.setState((state) => {
         if (!state.activeConversation) return state;
@@ -71,7 +71,7 @@ export function useChat() {
                 role: "assistant" as const,
                 content: "",
                 status: "streaming" as const,
-                modelId: activeModelId,
+                modelId,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
               },
@@ -93,7 +93,12 @@ export function useChat() {
    * final result, or null on failure/abort.
    */
   const runGeneration = useCallback(
-    async (assistantMsgId: string, messages: ChatMessagePayload[], toolsEnabled = false) => {
+    async (
+      assistantMsgId: string,
+      messages: ChatMessagePayload[],
+      toolsEnabled = false,
+      modelId: string = activeModelId,
+    ) => {
       activeAbort.current = new AbortController();
       try {
         const { temperature, numCtx, topP, seed, keepAlive } = generationOptions();
@@ -141,7 +146,7 @@ export function useChat() {
         while (round < MAX_TOOL_ROUNDS) {
           try {
             result = await ollamaClient.chatStream(
-              activeModelId,
+              modelId,
               convo,
               {
                 temperature,
@@ -161,7 +166,7 @@ export function useChat() {
               toast(
                 "warning",
                 "Tools unavailable",
-                `${activeModelId} doesn't support tool calling — answering without tools.`,
+                `${modelId} doesn't support tool calling — answering without tools.`,
               );
               continue;
             }
@@ -358,7 +363,7 @@ export function useChat() {
   );
 
   const regenerate = useCallback(
-    async (ragEnabled = false, toolsEnabled = false) => {
+    async (ragEnabled = false, toolsEnabled = false, modelId?: string) => {
       const conv = useChatStore.getState().activeConversation;
       if (!conv || useChatStore.getState().isGenerating) return;
 
@@ -368,7 +373,7 @@ export function useChat() {
       if (!lastAssistant || !lastUser) return;
 
       removeMessage(lastAssistant.id);
-      const newId = insertAssistantPlaceholder(conv.id);
+      const newId = insertAssistantPlaceholder(conv.id, modelId);
 
       const rag = ragEnabled ? await retrieveRag(lastUser.content, conv.contextFileIds) : EMPTY_RAG;
       if (rag.citations.length) updateMessage(newId, { citations: rag.citations });
@@ -377,7 +382,7 @@ export function useChat() {
       const history = toHistoryPayloads(msgs.filter((m) => m.id !== lastAssistant.id));
 
       const messages = fitToContext(conv.id, systemContent, history);
-      await runGeneration(newId, messages, toolsEnabled);
+      await runGeneration(newId, messages, toolsEnabled, modelId);
     },
     [insertAssistantPlaceholder, fitToContext, runGeneration, removeMessage, updateMessage],
   );

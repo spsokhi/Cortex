@@ -65,7 +65,8 @@
     background-color: rgb(var(--cortex-bg));
     color: rgb(var(--cortex-text));
     font-family: 'Inter var', 'Inter', system-ui, sans-serif;
-    font-size: 14px;
+    /* rem so the Settings → Appearance font-size (root scaling) applies here too */
+    font-size: 0.875rem;
     line-height: 1.5;
     user-select: none;
   }
@@ -93,6 +94,16 @@
   }
   ::-webkit-scrollbar-corner {
     background: transparent;
+  }
+
+  /* In-chat find (CSS Custom Highlight API) */
+  ::highlight(chat-find) {
+    background-color: rgb(var(--cortex-warning) / 0.3);
+    color: rgb(var(--cortex-text));
+  }
+  ::highlight(chat-find-active) {
+    background-color: rgb(var(--cortex-warning) / 0.85);
+    color: rgb(24 24 27);
   }
 
   /* Tauri drag region for custom titlebar */

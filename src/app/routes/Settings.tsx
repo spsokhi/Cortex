@@ -403,6 +403,12 @@ function VoiceSettings({ settings, onChange }: {
           <option value="auto">Auto-detect</option>
         </select>
       </SettingRow>
+      <SettingRow
+        label="Read responses aloud"
+        description="Show a speaker button on responses that reads them with your system voice — fully local"
+      >
+        <Toggle checked={settings.ttsEnabled ?? false} onChange={(v) => onChange({ ttsEnabled: v })} />
+      </SettingRow>
     </div>
   );
 }

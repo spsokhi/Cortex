@@ -15,9 +15,9 @@ export function TitleBar() {
     updateSettings({ appearance: { theme: isLight ? "dark" : "light" } });
   };
 
-  const minimize = () => getCurrentWindow().minimize().catch(() => null);
-  const maximize = () => getCurrentWindow().toggleMaximize().catch(() => null);
-  const close = () => getCurrentWindow().close().catch(() => null);
+  const minimize = () => { void getCurrentWindow().minimize().catch(() => null); };
+  const maximize = () => { void getCurrentWindow().toggleMaximize().catch(() => null); };
+  const close = () => { void getCurrentWindow().close().catch(() => null); };
 
   return (
     <div className="h-10 flex items-center justify-between bg-cortex-surface border-b border-cortex-border flex-shrink-0 select-none">

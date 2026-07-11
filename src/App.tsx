@@ -18,12 +18,17 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { applyHistoryRetention } from "@/services/privacy";
 import { findAccent } from "@/data/accents";
 
+// Root font-size drives every rem-based (Tailwind) size in the app
+const ROOT_FONT_SIZES = { sm: "14px", md: "16px", lg: "18px" } as const;
+
 function ThemeApplier() {
   const theme = useSettingsStore((s) => s.settings.appearance.theme);
   const accentId = useSettingsStore((s) => s.settings.appearance.accent ?? "indigo");
+  const fontSize = useSettingsStore((s) => s.settings.appearance.fontSize ?? "md");
 
   useEffect(() => {
     const root = document.documentElement;
+    root.style.fontSize = ROOT_FONT_SIZES[fontSize] ?? ROOT_FONT_SIZES.md;
 
     const applyTheme = (prefersDark: boolean) => {
       const isLight = theme === "light" || (theme === "system" && !prefersDark);
@@ -45,7 +50,7 @@ function ThemeApplier() {
       mq.addEventListener("change", handler);
       return () => mq.removeEventListener("change", handler);
     }
-  }, [theme, accentId]);
+  }, [theme, accentId, fontSize]);
 
   return null;
 }
