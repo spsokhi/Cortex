@@ -191,6 +191,43 @@ export class OllamaClient {
     return out;
   }
 
+  /**
+   * Non-streaming one-shot completion via /api/generate.
+   * Throws on API/network errors (callers surface them as toasts).
+   */
+  async generate(
+    model: string,
+    prompt: string,
+    options: {
+      temperature?: number;
+      numPredict?: number;
+      keepAlive?: string | number;
+      timeoutMs?: number;
+    } = {},
+  ): Promise<string> {
+    const res = await fetch(`${this.baseUrl}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(options.timeoutMs ?? 60000),
+      body: JSON.stringify({
+        model,
+        prompt,
+        stream: false,
+        ...(options.keepAlive != null ? { keep_alive: options.keepAlive } : {}),
+        options: {
+          temperature: options.temperature ?? 0.3,
+          ...(options.numPredict ? { num_predict: options.numPredict } : {}),
+        },
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Ollama generate error ${res.status}: ${text}`);
+    }
+    const data = (await res.json()) as { response?: string };
+    return (data.response ?? "").trim();
+  }
+
   async generateTitle(
     model: string,
     userMessage: string,

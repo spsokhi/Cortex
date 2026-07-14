@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload, Search, FolderOpen, FileText, File, Image,
   Code2, Trash2, RefreshCw, CheckCircle2, Clock, AlertCircle,
+  Sparkles, Loader2,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useFileStore } from "@/stores/fileStore";
 import { useUIStore } from "@/stores/uiStore";
 import { addBrowserFile, addPathFile, indexFileContent } from "@/services/indexing";
+import { summarizeFile } from "@/services/summarize";
 import { cn } from "@/utils/cn";
 import { formatBytes, formatRelativeTime } from "@/utils/format";
 import type { IndexedFile } from "@/types/files";
@@ -226,6 +228,24 @@ function FileCard({
   onDelete: () => void;
   onReindex: () => void;
 }) {
+  const [summarizing, setSummarizing] = useState(false);
+
+  const handleSummarize = async () => {
+    if (summarizing) return;
+    setSummarizing(true);
+    try {
+      await summarizeFile(file.id);
+    } catch (err) {
+      useUIStore.getState().toast(
+        "error",
+        "Summary failed",
+        err instanceof Error ? err.message : "Is Ollama running?",
+      );
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
   return (
     <motion.div
       layout
@@ -257,13 +277,37 @@ function FileCard({
             {formatRelativeTime(file.updatedAt)}
           </span>
         </div>
+        {file.summary && (
+          <p className="text-2xs text-cortex-text-muted italic mt-1 line-clamp-2" title={file.summary}>
+            {file.summary}
+          </p>
+        )}
         {file.error && (
           <p className="text-2xs text-cortex-error mt-0.5">{file.error}</p>
         )}
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className={cn(
+        "flex items-center gap-1 transition-opacity",
+        summarizing ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+      )}>
+        {file.content && file.indexStatus !== "indexing" && (
+          <button
+            onClick={() => void handleSummarize()}
+            disabled={summarizing}
+            className="p-1.5 rounded-lg text-cortex-text-dim hover:text-cortex-accent hover:bg-cortex-accent/10 transition-colors disabled:opacity-60"
+            title={
+              summarizing
+                ? "Summarizing…"
+                : file.summary
+                  ? "Regenerate AI summary"
+                  : "Summarize with the local model"
+            }
+          >
+            {summarizing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+          </button>
+        )}
         {file.content && file.indexStatus !== "indexing" && (
           <button
             onClick={onReindex}

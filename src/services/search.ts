@@ -95,18 +95,28 @@ export function searchEverything(query: string): SearchResult[] {
   }
   results.push(...noteHits.sort(byRank).slice(0, PER_TYPE_LIMIT));
 
-  // Files — name plus extracted text
+  // Files — name, AI summary, and extracted text
   const { files } = useFileStore.getState();
   const fileHits: SearchResult[] = [];
   for (const file of files) {
     const titleMatch = matchesAll(file.name.toLowerCase(), needles);
-    const combined = `${file.name}\n${file.content ?? ""}`.toLowerCase();
+    const combined = `${file.name}\n${file.summary ?? ""}\n${file.content ?? ""}`.toLowerCase();
     if (!titleMatch && !matchesAll(combined, needles)) continue;
+
+    // Prefer the summary for the snippet — it reads better than raw chunk text
+    let snippet: string | undefined;
+    if (!titleMatch) {
+      if (file.summary?.toLowerCase().includes(needles[0])) {
+        snippet = makeSnippet(file.summary, needles[0]);
+      } else if (file.content) {
+        snippet = makeSnippet(file.content, needles[0]);
+      }
+    }
     fileHits.push({
       type: "file",
       id: file.id,
       title: file.name,
-      snippet: titleMatch || !file.content ? undefined : makeSnippet(file.content, needles[0]),
+      snippet,
       updatedAt: file.updatedAt,
       titleMatch,
     });
