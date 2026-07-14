@@ -2,14 +2,20 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Settings, Cpu, Database, Mic, Eye, Shield, Terminal, Save,
-  RotateCcw, ChevronRight, BarChart2, Download,
+  RotateCcw, ChevronRight, BarChart2, Download, Upload,
 } from "lucide-react";
+import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
+import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useStatsStore } from "@/stores/statsStore";
 import { useChatStore } from "@/stores/chatStore";
 import { findPersona } from "@/stores/personaStore";
 import { clearChatHistory } from "@/services/privacy";
+import {
+  serializeBackup, parseBackup, previewImport, applyBackup, backupFileName,
+  type CortexBackup, type ImportCounts,
+} from "@/services/backup";
 import { ACCENT_PRESETS } from "@/data/accents";
 import { cn } from "@/utils/cn";
 
@@ -204,6 +210,66 @@ function GeneralSettings({ settings, onChange }: {
   settings: ReturnType<typeof useSettingsStore.getState>["settings"]["general"];
   onChange: (v: Partial<typeof settings>) => void;
 }) {
+  const { toast } = useUIStore();
+  const [pendingImport, setPendingImport] = useState<{ backup: CortexBackup; counts: ImportCounts } | null>(null);
+
+  const handleExport = async () => {
+    try {
+      const path = await saveDialog({
+        filters: [{ name: "Cortex backup", extensions: ["json"] }],
+        defaultPath: backupFileName(),
+      });
+      if (!path) return;
+      await writeTextFile(path, serializeBackup());
+      toast("success", "Backup exported", path);
+    } catch {
+      toast("error", "Export failed", "Could not save the backup file");
+    }
+  };
+
+  const handlePickBackup = async () => {
+    try {
+      const path = await openDialog({
+        multiple: false,
+        filters: [{ name: "Cortex backup", extensions: ["json"] }],
+      });
+      if (typeof path !== "string") return; // cancelled
+      const backup = parseBackup(await readTextFile(path));
+      setPendingImport({ backup, counts: previewImport(backup) });
+    } catch (err) {
+      toast("error", "Can't read backup", err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleConfirmImport = () => {
+    if (!pendingImport) return;
+    const counts = applyBackup(pendingImport.backup);
+    setPendingImport(null);
+    const added =
+      counts.conversations + counts.notes + counts.files + counts.personas + counts.prompts;
+    toast(
+      "success",
+      "Backup restored",
+      `${added} item${added !== 1 ? "s" : ""} added${counts.hasSettings ? " · settings applied" : ""}.`,
+    );
+  };
+
+  const importSummary = (counts: ImportCounts): string => {
+    const parts = [
+      counts.conversations && `${counts.conversations} chat${counts.conversations !== 1 ? "s" : ""}`,
+      counts.notes && `${counts.notes} note${counts.notes !== 1 ? "s" : ""}`,
+      counts.files && `${counts.files} file${counts.files !== 1 ? "s" : ""}`,
+      counts.personas && `${counts.personas} persona${counts.personas !== 1 ? "s" : ""}`,
+      counts.prompts && `${counts.prompts} prompt${counts.prompts !== 1 ? "s" : ""}`,
+    ].filter(Boolean);
+    if (!parts.length) {
+      return counts.hasSettings
+        ? "Everything in this backup already exists here — only settings will be applied."
+        : "Everything in this backup already exists here — nothing to add.";
+    }
+    return `Adds ${parts.join(", ")}${counts.hasSettings ? " and applies the backed-up settings" : ""}. Existing items are never overwritten.`;
+  };
+
   return (
     <div>
       <SettingRow label="Close to tray" description="Keep Cortex running in the background when closed">
@@ -215,6 +281,53 @@ function GeneralSettings({ settings, onChange }: {
       <SettingRow label="Auto-update check" description="Check for new Cortex releases on startup">
         <Toggle checked={settings.autoUpdateCheck} onChange={(v) => onChange({ autoUpdateCheck: v })} />
       </SettingRow>
+      <SettingRow
+        label="Export all data"
+        description="Save chats, notes, indexed files, personas, prompts and settings to a single JSON file"
+      >
+        <button
+          onClick={() => void handleExport()}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-cortex-surface-3 border border-cortex-border text-cortex-text-muted hover:text-cortex-text hover:border-cortex-accent/30 transition-colors"
+        >
+          <Download size={13} />
+          Export
+        </button>
+      </SettingRow>
+      <SettingRow
+        label="Restore from backup"
+        description="Merge a backup file into this install — existing items are kept, nothing is overwritten"
+      >
+        <button
+          onClick={() => void handlePickBackup()}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-cortex-surface-3 border border-cortex-border text-cortex-text-muted hover:text-cortex-text hover:border-cortex-accent/30 transition-colors"
+        >
+          <Upload size={13} />
+          Choose file…
+        </button>
+      </SettingRow>
+
+      {pendingImport && (
+        <div className="mt-4 p-4 rounded-xl bg-cortex-accent/5 border border-cortex-accent/20">
+          <p className="text-xs font-medium text-cortex-text">
+            Backup from {new Date(pendingImport.backup.exportedAt).toLocaleString()}
+          </p>
+          <p className="text-xs text-cortex-text-muted mt-1">{importSummary(pendingImport.counts)}</p>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={handleConfirmImport}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-cortex-accent text-white hover:bg-cortex-accent-dim transition-colors"
+            >
+              Restore
+            </button>
+            <button
+              onClick={() => setPendingImport(null)}
+              className="px-3 py-1.5 rounded-lg text-xs bg-cortex-surface-3 text-cortex-text-muted hover:text-cortex-text border border-cortex-border transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
