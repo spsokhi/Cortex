@@ -27,6 +27,7 @@ import { useModelStore } from "@/stores/modelStore";
 import { usePersonaStore, findPersona } from "@/stores/personaStore";
 import { PERSONAS, type Persona } from "@/data/personas";
 import { PersonaEditor } from "@/components/personas/PersonaEditor";
+import { Tooltip } from "@/components/common/Tooltip";
 import { cn } from "@/utils/cn";
 import { truncate, formatRelativeTime } from "@/utils/format";
 import type { ConversationSummary } from "@/types/chat";
@@ -96,6 +97,7 @@ export function Sidebar() {
       {/* Nav icons */}
       <div className="flex flex-col gap-0.5 p-2 border-b border-cortex-border">
         {/* Search */}
+        <Tooltip label="Search (Ctrl+K)" side="right" disabled={isExpanded}>
         <button
           onClick={() => setCommandPalette(true)}
           className={cn(
@@ -103,7 +105,6 @@ export function Sidebar() {
             "hover:bg-cortex-surface-3 hover:text-cortex-text transition-all duration-150",
             !isExpanded && "justify-center",
           )}
-          title="Search (Ctrl+K)"
         >
           <Search size={16} />
           <AnimatePresence>
@@ -122,8 +123,10 @@ export function Sidebar() {
             <span className="ml-auto text-2xs text-cortex-text-dim font-mono">⌘K</span>
           )}
         </button>
+        </Tooltip>
 
         {/* New Chat */}
+        <Tooltip label="New chat (Ctrl+N)" side="right" disabled={isExpanded}>
         <button
           onClick={handleNewChat}
           className={cn(
@@ -132,11 +135,11 @@ export function Sidebar() {
             "hover:bg-cortex-accent/20 transition-all duration-150",
             !isExpanded && "justify-center",
           )}
-          title="New chat"
         >
           <Plus size={16} />
           {isExpanded && <span className="text-sm font-medium">New Chat</span>}
         </button>
+        </Tooltip>
       </div>
 
       {/* Navigation tabs */}
@@ -148,29 +151,29 @@ export function Sidebar() {
             location.pathname.startsWith(item.path + "/");
 
           return (
-            <button
-              key={item.path}
-              onClick={() => {
-                navigate(item.path);
-                setSidebarTab(item.path.slice(1) as never);
-              }}
-              className={cn(
-                "flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-150",
-                isActive
-                  ? "bg-cortex-accent/15 text-cortex-accent"
-                  : "text-cortex-text-muted hover:bg-cortex-surface-3 hover:text-cortex-text",
-                !isExpanded && "justify-center",
-              )}
-              title={item.label}
-            >
-              <Icon size={16} />
-              {isExpanded && (
-                <span className="text-sm">{item.label}</span>
-              )}
-              {isExpanded && isActive && (
-                <ChevronRight size={12} className="ml-auto opacity-60" />
-              )}
-            </button>
+            <Tooltip key={item.path} label={item.label} side="right" disabled={isExpanded}>
+              <button
+                onClick={() => {
+                  navigate(item.path);
+                  setSidebarTab(item.path.slice(1) as never);
+                }}
+                className={cn(
+                  "flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-150",
+                  isActive
+                    ? "bg-cortex-accent/15 text-cortex-accent"
+                    : "text-cortex-text-muted hover:bg-cortex-surface-3 hover:text-cortex-text",
+                  !isExpanded && "justify-center",
+                )}
+              >
+                <Icon size={16} />
+                {isExpanded && (
+                  <span className="text-sm">{item.label}</span>
+                )}
+                {isExpanded && isActive && (
+                  <ChevronRight size={12} className="ml-auto opacity-60" />
+                )}
+              </button>
+            </Tooltip>
           );
         })}
       </div>
@@ -178,18 +181,19 @@ export function Sidebar() {
       {/* Persona picker — collapsed: emoji indicator, expanded: full list */}
       {!isExpanded ? (
         <div className="flex flex-col items-center py-1.5 border-b border-cortex-border">
-          <button
-            onClick={() => useUIStore.getState().toggleSidebar()}
-            className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-base",
-              activePersona
-                ? "bg-cortex-accent/10 text-cortex-accent"
-                : "text-cortex-text-dim hover:bg-cortex-surface-3 hover:text-cortex-text-muted",
-            )}
-            title={activePersona ? `Persona: ${activePersona.name}` : "No persona active"}
-          >
-            {activePersona ? activePersona.emoji : <Bot size={15} />}
-          </button>
+          <Tooltip label={activePersona ? `Persona: ${activePersona.name}` : "No persona active"} side="right">
+            <button
+              onClick={() => useUIStore.getState().toggleSidebar()}
+              className={cn(
+                "w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-base",
+                activePersona
+                  ? "bg-cortex-accent/10 text-cortex-accent"
+                  : "text-cortex-text-dim hover:bg-cortex-surface-3 hover:text-cortex-text-muted",
+              )}
+            >
+              {activePersona ? activePersona.emoji : <Bot size={15} />}
+            </button>
+          </Tooltip>
         </div>
       ) : (
         <div className="border-b border-cortex-border flex-shrink-0">
@@ -447,6 +451,7 @@ export function Sidebar() {
 
       {/* Bottom settings */}
       <div className="flex flex-col gap-0.5 p-2 border-t border-cortex-border">
+        <Tooltip label="Models" side="right" disabled={isExpanded}>
         <button
           onClick={() => navigate("/models")}
           className={cn(
@@ -454,11 +459,12 @@ export function Sidebar() {
             "hover:bg-cortex-surface-3 hover:text-cortex-text transition-all duration-150",
             !isExpanded && "justify-center",
           )}
-          title="Models"
         >
           <Cpu size={16} />
           {isExpanded && <span className="text-sm">Models</span>}
         </button>
+        </Tooltip>
+        <Tooltip label="Settings" side="right" disabled={isExpanded}>
         <button
           onClick={() => navigate("/settings")}
           className={cn(
@@ -466,11 +472,11 @@ export function Sidebar() {
             "hover:bg-cortex-surface-3 hover:text-cortex-text transition-all duration-150",
             !isExpanded && "justify-center",
           )}
-          title="Settings"
         >
           <Settings size={16} />
           {isExpanded && <span className="text-sm">Settings</span>}
         </button>
+        </Tooltip>
       </div>
 
       {/* Persona editor — portaled to body so the sidebar's width transform can't trap the overlay */}

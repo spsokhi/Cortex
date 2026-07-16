@@ -79,7 +79,7 @@ export const ChatMessage = memo(function ChatMessage({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
       className={cn(
-        "group flex hover:bg-cortex-surface-2/30 transition-colors",
+        "group flex hover:bg-cortex-surface-2/30 transition-colors msg-auto-render",
         compact ? "gap-2.5 px-3 py-2" : "gap-3 px-4 py-4",
         isUser && "flex-row-reverse",
       )}

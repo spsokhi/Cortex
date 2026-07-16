@@ -20,14 +20,21 @@ import { stopSpeaking } from "@/services/tts";
 import { addBrowserFile, isIndexableType } from "@/services/indexing";
 import { getFileType } from "@/types/files";
 import { PERSONAS } from "@/data/personas";
-import type { Persona } from "@/data/personas";
+import type { Persona, PersonaSuggestion } from "@/data/personas";
 import { cn } from "@/utils/cn";
 
-const SUGGESTIONS = [
-  { icon: <Sparkles size={14} />, label: "Explain a concept", prompt: "Explain quantum computing in simple terms" },
-  { icon: <Code2 size={14} />, label: "Write code", prompt: "Write a Python script that monitors system resources" },
-  { icon: <FileText size={14} />, label: "Summarize text", prompt: "Summarize the following text for me:" },
-  { icon: <SearchIcon size={14} />, label: "Research a topic", prompt: "What are the latest advances in local AI models?" },
+const DEFAULT_SUGGESTIONS: PersonaSuggestion[] = [
+  { label: "Explain a concept", prompt: "Explain quantum computing in simple terms" },
+  { label: "Write code", prompt: "Write a Python script that monitors system resources" },
+  { label: "Summarize text", prompt: "Summarize the following text for me:" },
+  { label: "Research a topic", prompt: "What are the latest advances in local AI models?" },
+];
+
+const SUGGESTION_ICONS = [
+  <Sparkles size={14} key="a" />,
+  <Code2 size={14} key="b" />,
+  <FileText size={14} key="c" />,
+  <SearchIcon size={14} key="d" />,
 ];
 
 export function ChatRoute() {
@@ -507,28 +514,30 @@ function WelcomeScreen({
         </div>
       </div>
 
-      {/* Suggestions */}
+      {/* Suggestions — persona-specific when the active persona defines them */}
       <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
-        {SUGGESTIONS.map((s) => (
-          <button
-            key={s.label}
-            onClick={() => onSuggestion(s.prompt)}
-            className={cn(
-              "flex items-start gap-3 p-3.5 rounded-xl text-left",
-              "bg-cortex-surface-2 border border-cortex-border",
-              "hover:border-cortex-accent/30 hover:bg-cortex-surface-3",
-              "transition-all duration-150 group",
-            )}
-          >
-            <span className="text-cortex-text-muted group-hover:text-cortex-accent transition-colors mt-0.5">
-              {s.icon}
-            </span>
-            <div>
-              <p className="text-xs font-medium text-cortex-text">{s.label}</p>
-              <p className="text-2xs text-cortex-text-dim mt-0.5 line-clamp-1">{s.prompt}</p>
-            </div>
-          </button>
-        ))}
+        {(activePersona?.suggestions?.length ? activePersona.suggestions : DEFAULT_SUGGESTIONS).map(
+          (s, i) => (
+            <button
+              key={s.label}
+              onClick={() => onSuggestion(s.prompt)}
+              className={cn(
+                "flex items-start gap-3 p-3.5 rounded-xl text-left",
+                "bg-cortex-surface-2 border border-cortex-border",
+                "hover:border-cortex-accent/30 hover:bg-cortex-surface-3",
+                "transition-all duration-150 group",
+              )}
+            >
+              <span className="text-cortex-text-muted group-hover:text-cortex-accent transition-colors mt-0.5">
+                {SUGGESTION_ICONS[i % SUGGESTION_ICONS.length]}
+              </span>
+              <div>
+                <p className="text-xs font-medium text-cortex-text">{s.label}</p>
+                <p className="text-2xs text-cortex-text-dim mt-0.5 line-clamp-1">{s.prompt}</p>
+              </div>
+            </button>
+          ),
+        )}
       </div>
 
       <p className="text-2xs text-cortex-text-dim text-center max-w-sm">

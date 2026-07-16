@@ -4,6 +4,7 @@ import { Send, Square, Paperclip, Mic, MicOff, Database, Wrench, FileText, Loade
 import { motion, AnimatePresence } from "framer-motion";
 import { useVoice } from "@/hooks/useVoice";
 import { PromptLibrary } from "@/components/chat/PromptLibrary";
+import { Tooltip } from "@/components/common/Tooltip";
 import { cn } from "@/utils/cn";
 
 const ATTACH_ACCEPT = ".pdf,.txt,.md,.markdown,.py,.js,.ts,.tsx,.jsx,.json,.csv,.html,.css,.yaml,.yml,.sh,.rs,.go,.java,.c,.cpp";
@@ -299,17 +300,18 @@ function ToolbarButton({
   activeColor?: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={label}
-      className={cn(
-        "p-1.5 rounded-lg transition-colors",
-        active
-          ? `${activeColor} bg-cortex-surface-3`
-          : "text-cortex-text-dim hover:text-cortex-text hover:bg-cortex-surface-3",
-      )}
-    >
-      {icon}
-    </button>
+    <Tooltip label={label} side="top">
+      <button
+        onClick={onClick}
+        className={cn(
+          "p-1.5 rounded-lg transition-colors",
+          active
+            ? `${activeColor} bg-cortex-surface-3`
+            : "text-cortex-text-dim hover:text-cortex-text hover:bg-cortex-surface-3",
+        )}
+      >
+        {icon}
+      </button>
+    </Tooltip>
   );
 }

@@ -96,6 +96,16 @@
     background: transparent;
   }
 
+  /* Cheap virtualization for long chats: the browser skips layout/paint for
+     off-screen messages but keeps them in the DOM, so in-chat find (Ctrl+F),
+     text selection, and highlights keep working. The intrinsic-size fallback
+     is remembered per element after first render, which keeps scrollbar
+     jitter minimal. */
+  .msg-auto-render {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 140px;
+  }
+
   /* In-chat find (CSS Custom Highlight API) */
   ::highlight(chat-find) {
     background-color: rgb(var(--cortex-warning) / 0.3);
